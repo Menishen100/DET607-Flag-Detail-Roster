@@ -41,7 +41,7 @@ async function loadLiveRoster(profile) {
 async function applySession(session) {
   if (!session) { authScreen.hidden = false; appShell.hidden = true; return; }
   authStatus('Checking roster access…');
-  const { data: profile, error } = await supabaseClient.from('profiles').select('id,full_name,role,active').eq('id', session.user.id).maybeSingle();
+  const { data: profile, error } = await supabaseClient.rpc('get_my_profile').maybeSingle();
   if (error || !profile || !profile.active) {
     await supabaseClient.auth.signOut();
     authStatus('This account is not yet on the active DET 607 roster. Ask the roster administrator to create or activate it.', 'error');
