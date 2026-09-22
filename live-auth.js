@@ -6,6 +6,7 @@ const authForm = document.querySelector('#sign-in-form');
 const supabaseClient = window.DET607_SUPABASE && window.supabase
   ? window.supabase.createClient(window.DET607_SUPABASE.url, window.DET607_SUPABASE.publishableKey)
   : null;
+window.det607Supabase = supabaseClient;
 
 function authStatus(message, type = '') {
   authMessage.textContent = message;
@@ -38,6 +39,7 @@ async function loadLiveRoster(profile, email) {
   document.querySelector('#profile-name').textContent = displayName;
   document.querySelector('#profile-email').textContent = email || '';
   document.querySelector('#profile-role').textContent = profile.role.replace('_', ' ');
+  document.dispatchEvent(new CustomEvent('det607:profile', { detail: { profile, email } }));
   document.querySelector('#page-title').textContent = `Welcome, ${displayName}.`;
   const first = mapped[0]?.date ? new Date(mapped[0].date + 'T12:00') : new Date();
   month = first.getMonth(); year = first.getFullYear(); render();
