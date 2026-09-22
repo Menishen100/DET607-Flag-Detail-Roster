@@ -59,10 +59,14 @@ authForm.addEventListener('submit', async event => {
   event.preventDefault();
   if (!supabaseClient) return authStatus('The secure connection is unavailable. Refresh and try again.', 'error');
   const button = authForm.querySelector('button'); button.disabled = true; authStatus('Signing in…');
-  const { error } = await supabaseClient.auth.signInWithPassword({ email: $('#auth-email').value.trim(), password: $('#auth-password').value });
-  button.disabled = false; if (error) authStatus(error.message, 'error');
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email: $('#auth-email').value.trim(), password: $('#auth-password').value });
+  button.disabled = false;
+  if (error) return authStatus(error.message, 'error');
+  if (data.session) await applySession(data.session);
 });
 if (supabaseClient) {
   supabaseClient.auth.getSession().then(({ data: { session } }) => applySession(session));
-  supabaseClient.auth.onAuthStateChange((_event, session) => applySession(session));
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    window.setTimeout(() => applySession(session), 0);
+  });
 } else authStatus('The secure connection is unavailable. Refresh and try again.', 'error');
