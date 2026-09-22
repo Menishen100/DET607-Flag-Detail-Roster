@@ -16,7 +16,7 @@ function detailLabel(type) { return type === 'REVEILLE' ? 'Reveille' : 'Retreat'
 async function loadLiveRoster(profile) {
   const [{ data: details, error: detailError }, { data: assignments, error: assignmentError }] = await Promise.all([
     supabaseClient.from('details').select('id,detail_date,detail_type,report_time,ceremony_time,blocked,blocked_reason').order('detail_date'),
-    supabaseClient.from('assignments').select('id,detail_id,cadet_id,position,removed_at,profiles(full_name)').is('removed_at', null)
+    supabaseClient.from('assignments').select('id,detail_id,cadet_id,position,removed_at,profiles!assignments_cadet_id_fkey(full_name)').is('removed_at', null)
   ]);
   if (detailError || assignmentError) throw detailError || assignmentError;
   const mapped = (details || []).map(detail => {
