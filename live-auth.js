@@ -13,7 +13,7 @@ function authStatus(message, type = '') {
 }
 function detailLabel(type) { return type === 'REVEILLE' ? 'Reveille' : 'Retreat'; }
 
-async function loadLiveRoster(profile) {
+async function loadLiveRoster(profile, email) {
   const [{ data: details, error: detailError }, { data: assignments, error: assignmentError }] = await Promise.all([
     supabaseClient.from('details').select('id,detail_date,detail_type,report_time,ceremony_time,blocked,blocked_reason').order('detail_date'),
     supabaseClient.from('assignments').select('id,detail_id,cadet_id,position,removed_at,profiles!assignments_cadet_id_fkey(full_name)').is('removed_at', null)
@@ -31,8 +31,13 @@ async function loadLiveRoster(profile) {
   });
   data = { details: mapped, blocked: Object.fromEntries(mapped.filter(d => d.blocked).map(d => [d.date, d.blockedReason || 'Unavailable'])), requests: [], attendance: [], cases: [] };
   const displayName = profile.full_name || 'Cadet';
+  const initials = displayName.split(/\s+/).filter(Boolean).map(name => name[0]).join('').slice(0, 2).toUpperCase();
   document.querySelector('.user-card strong').textContent = displayName;
   document.querySelector('.user-card small').textContent = profile.role.replace('_', ' ');
+  document.querySelector('.avatar').textContent = initials || 'CD';
+  document.querySelector('#profile-name').textContent = displayName;
+  document.querySelector('#profile-email').textContent = email || '';
+  document.querySelector('#profile-role').textContent = profile.role.replace('_', ' ');
   document.querySelector('#page-title').textContent = `Welcome, ${displayName}.`;
   const first = mapped[0]?.date ? new Date(mapped[0].date + 'T12:00') : new Date();
   month = first.getMonth(); year = first.getFullYear(); render();
@@ -51,7 +56,7 @@ async function applySession(session) {
     authStatus('This account is not yet on the active DET 607 roster. Ask the roster administrator to create or activate it.', 'error');
     return;
   }
-  try { await loadLiveRoster(profile); authScreen.hidden = true; appShell.hidden = false; }
+  try { await loadLiveRoster(profile, session.user?.email); authScreen.hidden = true; appShell.hidden = false; }
   catch (loadError) { authStatus(`Roster access is configured, but the schedule could not load: ${loadError.message}`, 'error'); }
 }
 
@@ -70,3 +75,20 @@ if (supabaseClient) {
     window.setTimeout(() => applySession(session), 0);
   });
 } else authStatus('The secure connection is unavailable. Refresh and try again.', 'error');
+
+const profileMenu = document.querySelector('#profile-menu');
+const profilePopover = document.querySelector('#profile-popover');
+const signOutButton = document.querySelector('#sign-out');
+profileMenu?.addEventListener('click', () => {
+  const opening = profilePopover.hidden;
+  profilePopover.hidden = !opening;
+  profileMenu.setAttribute('aria-expanded', String(opening));
+});
+signOutButton?.addEventListener('click', async () => {
+  signOutButton.disabled = true;
+  await supabaseClient.auth.signOut();
+  profilePopover.hidden = true;
+  profileMenu.setAttribute('aria-expanded', 'false');
+  authStatus('You have been signed out.', 'success');
+  signOutButton.disabled = false;
+});

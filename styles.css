@@ -6,3 +6,5 @@
 [hidden] {
   display: none !important;
 }
+
+.side-bottom{position:relative}.user-card{width:100%;border:0;border-top:1px solid rgba(255,255,255,.13);padding:18px 9px;background:transparent;color:#eff6fc;display:flex;gap:10px;align-items:center;text-align:left;font:12px Manrope;cursor:pointer}.user-card:hover{background:rgba(255,255,255,.08)}.user-card>span:nth-child(2){min-width:0}.user-card strong{display:block}.profile-chevron{margin-left:auto;color:#a8c1d8;font-size:16px}.profile-popover{position:absolute;z-index:5;bottom:60px;left:7px;right:7px;padding:13px;border:1px solid #315470;border-radius:7px;background:#fff;color:var(--navy);box-shadow:var(--shadow)}.profile-popover strong,.profile-popover small,.profile-popover span{display:block}.profile-popover small{margin:4px 0;color:var(--muted);font-size:10px;overflow-wrap:anywhere}.profile-popover span{font:700 9px 'DM Mono';color:var(--blue);letter-spacing:.06em}.profile-popover button{width:100%;margin-top:12px;padding:8px;border:1px solid #c9423f;border-radius:5px;background:#fff;color:#b13834;font:700 11px Manrope;cursor:pointer}

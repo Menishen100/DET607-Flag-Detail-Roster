@@ -30,7 +30,7 @@
       <button class="nav" data-view="requests">Requests <b id="request-count">0</b></button>
       <button class="nav" data-view="counseling">Counseling <b id="case-count">0</b></button>
     </nav>
-    <div class="side-bottom"><div class="user-card"><span class="avatar">MA</span><div><strong>Maj. A. Reynolds</strong><small>Super Admin</small></div></div><button class="reset" id="reset">Reset demo</button></div>
+    <div class="side-bottom"><button class="user-card" id="profile-menu" aria-expanded="false" aria-controls="profile-popover"><span class="avatar">MA</span><span><strong>Maj. A. Reynolds</strong><small>Super Admin</small></span><b class="profile-chevron">⌄</b></button><div class="profile-popover" id="profile-popover" hidden><strong id="profile-name">Maj. A. Reynolds</strong><small id="profile-email"></small><span id="profile-role">Super Admin</span><button id="sign-out" type="button">Sign out</button></div><button class="reset" id="reset">Reset demo</button></div>
   </aside>
   <main>
     <header><div><p class="eyebrow">FLAG DETAIL OPERATIONS</p><h1 id="page-title">Good morning, Maj. Reynolds.</h1><p class="muted" id="today-label"></p></div><div class="header-actions"><button class="icon-button" id="show-notifications" aria-label="Notifications">⌁<i id="notification-dot"></i></button><button class="secondary" id="block-date">Block date</button><button class="primary" id="publish">Publish schedule</button></div></header>
