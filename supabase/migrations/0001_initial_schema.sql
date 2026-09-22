@@ -28,7 +28,7 @@ create table public.assignments (
  source text not null default 'ADMIN', assigned_by uuid references public.profiles(id), assigned_at timestamptz not null default now(), removed_at timestamptz,
  unique(detail_id, cadet_id)
 );
-create unique index active_assignment_seat on public.assignments(detail_id, position) where removed_at is null;
+create unique index one_active_poc_lead_per_detail on public.assignments(detail_id) where removed_at is null and position = 'POC_LEAD';
 create table public.attendance (
  id uuid primary key default gen_random_uuid(), assignment_id uuid not null unique references public.assignments(id) on delete cascade,
  status public.attendance_status not null default 'PENDING', clocked_at timestamptz, recorded_by uuid references public.profiles(id), note text, updated_at timestamptz not null default now()
