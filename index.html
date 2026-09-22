@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Detachment 607 | Flag Detail</title><link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><span class="roundel">✦</span><div><strong>DET 607</strong><small>Fayetteville State University</small></div></div>
+    <nav>
+      <button class="nav active" data-view="dashboard">Overview</button>
+      <button class="nav" data-view="schedule">Monthly schedule</button>
+      <button class="nav" data-view="open">Open details <b id="open-count">0</b></button>
+      <button class="nav" data-view="attendance">Attendance</button>
+      <button class="nav" data-view="requests">Requests <b id="request-count">0</b></button>
+      <button class="nav" data-view="counseling">Counseling <b id="case-count">0</b></button>
+    </nav>
+    <div class="side-bottom"><div class="user-card"><span class="avatar">MA</span><div><strong>Maj. A. Reynolds</strong><small>Super Admin</small></div></div><button class="reset" id="reset">Reset demo</button></div>
+  </aside>
+  <main>
+    <header><div><p class="eyebrow">FLAG DETAIL OPERATIONS</p><h1 id="page-title">Good morning, Maj. Reynolds.</h1><p class="muted" id="today-label"></p></div><div class="header-actions"><button class="icon-button" id="show-notifications" aria-label="Notifications">⌁<i id="notification-dot"></i></button><button class="secondary" id="block-date">Block date</button><button class="primary" id="publish">Publish schedule</button></div></header>
+    <section id="dashboard" class="view active-view">
+      <div class="notice"><span>◉</span><div><strong>September schedule is open for sign-up.</strong><p>All active cadets were notified at 08:00. Unfilled positions remain available until finalization.</p></div><button data-view-target="open">View open details</button></div>
+      <div class="metrics"><article><span>Coverage</span><strong id="coverage-number">0%</strong><small id="coverage-caption">of September positions filled</small><div class="meter"><i id="coverage-meter"></i></div></article><article><span>Open positions</span><strong id="open-number">0</strong><small>across upcoming details</small><a data-view-target="open">Fill open details →</a></article><article><span>Attendance rate</span><strong>96%</strong><small>this month · 48 of 50 recorded</small><a data-view-target="attendance">View attendance →</a></article><article class="alert-metric"><span>Needs review</span><strong id="review-number">0</strong><small>requests or counseling cases</small><a data-view-target="requests">Review queue →</a></article></div>
+      <div class="grid two"><section class="panel"><div class="panel-title"><div><p class="eyebrow">TODAY</p><h2>Monday, September 21</h2></div><button class="text-button" data-view-target="schedule">Full schedule →</button></div><div id="today-details" class="today-details"></div></section><section class="panel"><div class="panel-title"><div><p class="eyebrow">UP NEXT</p><h2>Upcoming flag details</h2></div></div><div id="upcoming" class="timeline"></div></section></div>
+    </section>
+    <section id="schedule" class="view"><div class="toolbar"><div class="month-control"><button id="previous-month">‹</button><strong id="month-title">September 2026</strong><button id="next-month">›</button></div><div><button class="secondary" id="edit-times">Edit default times</button><button class="primary" id="create-detail">Add exception</button></div></div><div class="legend"><span><i class="legend-dot ready"></i> Fully staffed</span><span><i class="legend-dot open"></i> Positions open</span><span><i class="legend-dot blocked"></i> Blocked</span></div><div class="calendar" id="calendar"></div></section>
+    <section id="open" class="view"><div class="section-heading"><div><p class="eyebrow">SELF-SIGNUP</p><h2>Open flag detail positions</h2><p class="muted">Assignments are checked against your existing schedule before being saved.</p></div><button class="secondary" id="assign-cadet">Assign a cadet</button></div><div id="open-details" class="card-list"></div></section>
+    <section id="attendance" class="view"><div class="section-heading"><div><p class="eyebrow">ACCOUNTABILITY</p><h2>Attendance register</h2><p class="muted">POCs record their own detail. Staff can correct any entry; all changes are logged.</p></div><button class="primary" id="record-attendance">Record attendance</button></div><div class="filters"><button class="filter active">Today</button><button class="filter">This week</button><button class="filter">This month</button></div><div id="attendance-list" class="attendance-list"></div></section>
+    <section id="requests" class="view"><div class="section-heading"><div><p class="eyebrow">COVERAGE</p><h2>Swap & coverage requests</h2><p class="muted">A request can only be accepted by an eligible cadet without a time conflict.</p></div></div><div id="request-list" class="card-list"></div></section>
+    <section id="counseling" class="view"><div class="section-heading"><div><p class="eyebrow">SUPERVISOR QUEUE</p><h2>Counseling & no-show cases</h2><p class="muted">POC cases are automatically elevated to the Super Admin.</p></div><button class="primary" id="new-case">Open counseling case</button></div><div id="case-list" class="card-list"></div></section>
+  </main>
+  <div class="toast" id="toast"></div><div class="modal-backdrop" id="modal"><div class="modal"><button class="close" id="close-modal">×</button><div id="modal-content"></div></div></div><script src="app.js"></script>
+</body></html>
