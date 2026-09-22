@@ -17,6 +17,7 @@ alter table public.counseling_cases add column if not exists signed_snapshot jso
 alter table public.counseling_cases add column if not exists supervisor_remarks text;
 alter table public.counseling_cases add column if not exists void_reason text;
 alter table public.counseling_cases alter column status set default 'DRAFT';
+update public.counseling_cases set status='DRAFT' where status not in ('DRAFT','AWAITING_CADET_SIGNATURE','SIGNED_AWAITING_REVIEW','DISPUTED_AWAITING_REVIEW','COMPLETED','VOIDED');
 alter table public.counseling_cases drop constraint if exists counseling_cases_status_check;
 alter table public.counseling_cases add constraint counseling_cases_status_check check (status in ('DRAFT','AWAITING_CADET_SIGNATURE','SIGNED_AWAITING_REVIEW','DISPUTED_AWAITING_REVIEW','COMPLETED','VOIDED'));
 create unique index if not exists one_active_counseling_per_assignment on public.counseling_cases(assignment_id) where status not in ('VOIDED','COMPLETED');
