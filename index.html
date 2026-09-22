@@ -5,6 +5,21 @@
   <title>DET 607 Flag Detail Management</title><link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <section class="auth-screen" id="auth-screen">
+    <div class="auth-card">
+      <div class="brand"><span class="roundel">✦</span><div><strong>DET 607</strong><small>Flag Detail Management</small></div></div>
+      <p class="eyebrow">SECURE ROSTER ACCESS</p>
+      <h1>Sign in to Flag Detail Management</h1>
+      <p class="muted">Use the email address assigned to your DET 607 roster account.</p>
+      <form id="sign-in-form" class="auth-form">
+        <label>Email<input id="auth-email" type="email" autocomplete="email" required placeholder="you@example.com"></label>
+        <label>Password<input id="auth-password" type="password" autocomplete="current-password" required placeholder="Your password"></label>
+        <button class="primary" type="submit">Sign in</button>
+      </form>
+      <p id="auth-message" class="auth-message">Accounts are created by the roster administrator.</p>
+    </div>
+  </section>
+  <div id="app-shell" hidden>
   <aside class="sidebar">
     <div class="brand"><span class="roundel">✦</span><div><strong>DET 607</strong><small>Flag Detail Management</small></div></div>
     <nav>
@@ -30,5 +45,10 @@
     <section id="requests" class="view"><div class="section-heading"><div><p class="eyebrow">COVERAGE</p><h2>Swap & coverage requests</h2><p class="muted">A request can only be accepted by an eligible cadet without a time conflict.</p></div></div><div id="request-list" class="card-list"></div></section>
     <section id="counseling" class="view"><div class="section-heading"><div><p class="eyebrow">SUPERVISOR QUEUE</p><h2>Counseling & no-show cases</h2><p class="muted">POC cases are automatically elevated to the Super Admin.</p></div><button class="primary" id="new-case">Open counseling case</button></div><div id="case-list" class="card-list"></div></section>
   </main>
-  <div class="toast" id="toast"></div><div class="modal-backdrop" id="modal"><div class="modal"><button class="close" id="close-modal">×</button><div id="modal-content"></div></div></div><script src="app.js"></script>
+  <div class="toast" id="toast"></div><div class="modal-backdrop" id="modal"><div class="modal"><button class="close" id="close-modal">×</button><div id="modal-content"></div></div></div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="app.js"></script>
+  <script src="live-auth.js"></script>
 </body></html>
