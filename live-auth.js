@@ -42,7 +42,11 @@ async function applySession(session) {
   if (!session) { authScreen.hidden = false; appShell.hidden = true; return; }
   authStatus('Checking roster access…');
   const { data: profile, error } = await supabaseClient.rpc('get_my_profile').maybeSingle();
-  if (error || !profile || !profile.active) {
+  if (error) {
+    authStatus(`Sign-in succeeded, but roster access could not be checked: ${error.message}`, 'error');
+    return;
+  }
+  if (!profile || !profile.active) {
     await supabaseClient.auth.signOut();
     authStatus('This account is not yet on the active DET 607 roster. Ask the roster administrator to create or activate it.', 'error');
     return;
