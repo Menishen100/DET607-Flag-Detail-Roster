@@ -1,4 +1,4 @@
-# Flag Detail Roster — Implementation Plan
+# DET 607 Flag Detail Management — Implementation Plan
 
 ## Operating rules captured in the prototype
 
@@ -60,11 +60,11 @@ Use an outbox table (`notification_outbox`) and a background worker. Each email 
 
 ## Research: build versus off-the-shelf tools
 
-| Option | Useful capability | Fit for this personal project |
+| Option | Useful capability | Fit for DET 607 |
 | --- | --- | --- |
 | Deputy | Shift scheduling, time and attendance, open shifts, swap support, and notifications. | Strong operational features, but it is workforce/payroll-oriented and would need policy/configuration work for cadet/P.O.C. rules and counseling. |
 | When I Work | Publish schedules, staff shift requests/swaps, attendance, and alerts. | Good simple alternative to evaluate if a custom counseling/accountability workflow is not essential. |
-| Custom personal app | Exact four-person staffing rule, GMC/POC permissions, POC escalation, counseling, and your own branding and data policy. | Best functional fit; requires your own hosting, security review, and maintenance. |
+| Custom DET 607 tool | Exact four-person staffing rule, GMC/POC permissions, POC escalation, counseling, and Detachment-specific workflows. | Best functional fit; you operate its hosting, email, security, and maintenance independently. |
 
 Both Deputy and When I Work describe schedule publication, attendance, and shift changes/swaps as core workflow features. The recommended path is a short pilot of the custom system with 10–20 users while separately reviewing each vendor's pricing and privacy terms. Sources: [Deputy scheduling](https://www.deputy.com/features/scheduling-software), [Deputy shift swapping](https://www.deputy.com/features/shift-swapping), [When I Work scheduling](https://wheniwork.com/features/employee-scheduling-software), and [When I Work request processing](https://help.wheniwork.com/articles/processing-shift-requests-computer/).
 

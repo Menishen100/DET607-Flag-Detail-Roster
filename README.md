@@ -1,6 +1,6 @@
-# Flag Detail Roster
+# DET 607 Flag Detail Management
 
-A focused, browser-based personal prototype for managing weekday reveille and retreat flag details.
+A focused, browser-based application for managing AFROTC Detachment 607 weekday reveille and retreat flag details. It is independently built and operated; it is not a Fayetteville State University system.
 
 ## Run locally
 
