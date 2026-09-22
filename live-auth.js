@@ -33,12 +33,15 @@ async function loadLiveRoster(profile, email) {
   data = { details: mapped, blocked: Object.fromEntries(mapped.filter(d => d.blocked).map(d => [d.date, d.blockedReason || 'Unavailable'])), requests: [], attendance: [], cases: [] };
   const displayName = profile.full_name || 'Cadet';
   const initials = displayName.split(/\s+/).filter(Boolean).map(name => name[0]).join('').slice(0, 2).toUpperCase();
+  const classification = profile.cadet_type || (profile.role === 'POC' ? 'POC' : 'GMC');
+  const access = profile.admin_level && profile.admin_level !== 'NONE' ? ` · ${profile.admin_level.replace('_', ' ')}` : '';
+  const profileRole = `${classification}${access}`;
   document.querySelector('.user-card strong').textContent = displayName;
-  document.querySelector('.user-card small').textContent = profile.role.replace('_', ' ');
+  document.querySelector('.user-card small').textContent = profileRole;
   document.querySelector('.avatar').textContent = initials || 'CD';
   document.querySelector('#profile-name').textContent = displayName;
   document.querySelector('#profile-email').textContent = email || '';
-  document.querySelector('#profile-role').textContent = profile.role.replace('_', ' ');
+  document.querySelector('#profile-role').textContent = profileRole;
   document.dispatchEvent(new CustomEvent('det607:profile', { detail: { profile, email } }));
   document.querySelector('#page-title').textContent = `Welcome, ${displayName}.`;
   const first = mapped[0]?.date ? new Date(mapped[0].date + 'T12:00') : new Date();

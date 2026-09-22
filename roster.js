@@ -4,7 +4,8 @@ const rosterState = { profile: null, rows: [] };
 const rosterDirectory = document.querySelector('#roster-directory');
 const rosterNav = document.querySelector('#roster-nav');
 const roleLabel = role => role.replace('_', ' ');
-const isDirectoryAdmin = profile => ['SUPER_ADMIN', 'ADMIN'].includes(profile?.role);
+const profileLabel = profile => `${profile.cadet_type || (profile.role === 'POC' ? 'POC' : 'GMC')}${profile.admin_level && profile.admin_level !== 'NONE' ? ` · ${roleLabel(profile.admin_level)}` : ''}`;
+const isDirectoryAdmin = profile => ['SUPER_ADMIN', 'ADMIN'].includes(profile?.admin_level || profile?.role);
 function rosterNotice(message) {
   const toast = document.querySelector('#toast');
   toast.textContent = message; toast.classList.add('show');
@@ -19,20 +20,20 @@ function renderRosterDirectory() {
   const search = document.querySelector('#roster-search').value.trim().toLowerCase();
   const role = document.querySelector('#roster-role-filter').value;
   const level = document.querySelector('#roster-level-filter').value;
-  const rows = rosterState.rows.filter(row => (!role || row.role === role) && (!level || String(row.class_level || '') === level) && (!search || `${row.full_name} ${row.email}`.toLowerCase().includes(search)));
-  rosterDirectory.innerHTML = rows.length ? `<div class="roster-table"><div class="roster-row roster-head"><span>Cadet</span><span>Role</span><span>Class level</span><span>Email</span><span>Status</span></div>${rows.map(row => `<div class="roster-row"><strong>${row.full_name}</strong><span class="tag">${roleLabel(row.role)}</span><span>${row.class_level || 'Not set'}</span><a href="mailto:${row.email}">${row.email}</a><span class="status ${row.active ? 'attended' : 'no-show'}">${row.active ? 'Active' : 'Inactive'}</span></div>`).join('')}</div>` : '<p class="muted">No cadets match these filters.</p>';
+  const rows = rosterState.rows.filter(row => (!role || row.cadet_type === role || row.admin_level === role) && (!level || String(row.class_level || '') === level) && (!search || `${row.full_name} ${row.email}`.toLowerCase().includes(search)));
+  rosterDirectory.innerHTML = rows.length ? `<div class="roster-table"><div class="roster-row roster-head"><span>Cadet</span><span>Classification / access</span><span>Class level</span><span>Email</span><span>Status</span></div>${rows.map(row => `<div class="roster-row"><strong>${row.full_name}</strong><span class="tag">${profileLabel(row)}</span><span>${row.class_level || 'Not set'}</span><a href="mailto:${row.email}">${row.email}</a><span class="status ${row.active ? 'attended' : 'no-show'}">${row.active ? 'Active' : 'Inactive'}</span></div>`).join('')}</div>` : '<p class="muted">No cadets match these filters.</p>';
 }
 async function loadRosterDirectory() {
   if (!isDirectoryAdmin(rosterState.profile)) return;
   rosterDirectory.innerHTML = '<p class="muted">Loading cadet directory…</p>';
-  const { data, error } = await window.det607Supabase.from('profiles').select('id, full_name, email, role, active, class_level').order('full_name');
+  const { data, error } = await window.det607Supabase.from('profiles').select('id, full_name, email, role, active, class_level, cadet_type, admin_level').order('full_name');
   if (error) { rosterDirectory.innerHTML = `<p class="muted">Roster could not load: ${error.message}</p>`; return; }
   rosterState.rows = data || []; renderRosterDirectory();
 }
 function openMyProfile() {
   const profile = rosterState.profile;
   const options = classLevels.map(level => `<option value="${level}" ${profile.class_level === level ? 'selected' : ''}>${level}</option>`).join('');
-  openRosterModal(`<p class="eyebrow">MY PROFILE</p><h2>${profile.full_name}</h2><p>Choose your current class level. This is saved to your own roster account only.</p><div class="form-row"><label>Role</label><input value="${roleLabel(profile.role)}" disabled></div><div class="form-row"><label>Class level</label><select id="my-class-level"><option value="">Choose class level</option>${options}</select></div><div class="modal-actions"><button class="secondary" id="cancel-profile-edit">Cancel</button><button class="primary" id="save-class-level">Save class level</button></div>`);
+  openRosterModal(`<p class="eyebrow">MY PROFILE</p><h2>${profile.full_name}</h2><p>Choose your current class level. This is saved to your own roster account only.</p><div class="form-row"><label>Cadet classification / access</label><input value="${profileLabel(profile)}" disabled></div><div class="form-row"><label>Class level</label><select id="my-class-level"><option value="">Choose class level</option>${options}</select></div><div class="modal-actions"><button class="secondary" id="cancel-profile-edit">Cancel</button><button class="primary" id="save-class-level">Save class level</button></div>`);
   document.querySelector('#cancel-profile-edit').onclick = () => document.querySelector('#modal').classList.remove('show');
   document.querySelector('#save-class-level').onclick = saveMyClassLevel;
 }
