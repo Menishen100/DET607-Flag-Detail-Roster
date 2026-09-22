@@ -1,6 +1,6 @@
-# Detachment 607 Flag Detail
+# Flag Detail Roster
 
-A focused, browser-based prototype for AFROTC Detachment 607 (Fayetteville State University) to manage weekday reveille and retreat flag details.
+A focused, browser-based personal prototype for managing weekday reveille and retreat flag details.
 
 ## Run locally
 
@@ -19,14 +19,13 @@ Open `index.html` in a modern browser. No build step or external dependency is n
 
 ## Production implementation recommendation
 
-Use the screen flows here as the front end for a production app with an API, a relational database, an identity provider, and a job scheduler. Do **not** rely on browser local storage for cadet records or attendance. See `docs/implementation-plan.md` for the data model, security controls, email reminder plan, and research comparison.
+Use the screen flows here as the front end for a production app with an API, a relational database, an identity provider, and a job scheduler. Do **not** rely on browser local storage for roster records or attendance. See `docs/implementation-plan.md` for the data model, security controls, email reminder plan, and research comparison.
 
 ## Recommended stack
 
 - Front end: React + TypeScript (or keep this as a static prototype during discovery)
 - API: FastAPI or Django REST with PostgreSQL
-- Authentication: university SSO/OIDC where approved; otherwise magic-link/password account onboarding with MFA for staff roles
-- Email: university-approved SMTP, Microsoft 365 Graph, or Amazon SES
+- Authentication: a provider you control, such as Clerk, Auth0, Supabase Auth, or password/magic-link onboarding with MFA for staff roles
+- Email: your own SMTP provider, Resend, Postmark, SendGrid, or Amazon SES
 - Scheduled reminders: Celery/Redis, APScheduler, or cloud scheduler/queue
-- Hosting: university-approved environment with encrypted backups and audit logging
-
+- Hosting: an environment you control with encrypted backups and audit logging
