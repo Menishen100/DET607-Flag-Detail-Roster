@@ -9,8 +9,21 @@ begin
   if date_trunc('month', target_month)::date <> target_month then raise exception 'Use the first day of the schedule month'; end if;
 
   select id into target_schedule from public.schedules where month = target_month;
-  if target_schedule is null then raise exception 'Create the monthly schedule before publishing it'; end if;
-  if not exists (select 1 from public.details where schedule_id = target_schedule) then raise exception 'Add flag-detail dates before publishing this schedule'; end if;
+  if target_schedule is null then
+    insert into public.schedules (month, status, created_by)
+    values (target_month, 'DRAFT', auth.uid())
+    returning id into target_schedule;
+  end if;
+  if not exists (select 1 from public.details where schedule_id = target_schedule) then
+    insert into public.details (schedule_id, detail_date, detail_type, report_time, ceremony_time)
+    select target_schedule, day::date, detail_kind,
+      case when detail_kind = 'REVEILLE' then schedule.reveille_report else schedule.retreat_report end,
+      case when detail_kind = 'REVEILLE' then schedule.reveille_time else schedule.retreat_time end
+    from public.schedules schedule
+    cross join generate_series(target_month, target_month + interval '1 month - 1 day', interval '1 day') day
+    cross join (values ('REVEILLE'::public.detail_type), ('RETREAT'::public.detail_type)) as kinds(detail_kind)
+    where schedule.id = target_schedule and extract(isodow from day) between 1 and 5;
+  end if;
   if exists (select 1 from public.schedules where id = target_schedule and status = 'PUBLISHED') then raise exception 'This schedule is already published'; end if;
 
   update public.schedules set status = 'PUBLISHED', published_at = now() where id = target_schedule;
