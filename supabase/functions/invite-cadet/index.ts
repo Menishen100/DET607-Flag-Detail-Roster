@@ -15,7 +15,7 @@ Deno.serve(async request=>{
  if(!String(fullName||'').trim()||!/^\S+@\S+\.\S+$/.test(normalizedEmail)||!['GMC','POC'].includes(cadetType))return new Response(JSON.stringify({error:'Name, valid email, and classification are required'}),{status:400,headers});
  const {data:invited,error:inviteError}=await admin.auth.admin.inviteUserByEmail(normalizedEmail,{redirectTo:'https://det607flagdetail.com/',data:{full_name:String(fullName).trim()}});
  if(inviteError||!invited.user)return new Response(JSON.stringify({error:inviteError?.message||'Invite could not be created'}),{status:400,headers});
- const {error:profileError}=await admin.from('profiles').upsert({id:invited.user.id,full_name:String(fullName).trim(),email:normalizedEmail,role:cadetType,cadet_type:cadetType,admin_level:'NONE',active:true},{onConflict:'id'});
+ const {error:profileError}=await userClient.rpc('admin_create_invited_cadet_profile',{target_id:invited.user.id,new_name:String(fullName).trim(),new_email:normalizedEmail,new_cadet_type:cadetType});
  if(profileError)return new Response(JSON.stringify({error:profileError.message}),{status:500,headers});
  return new Response(JSON.stringify({ok:true}),{headers});
 });
