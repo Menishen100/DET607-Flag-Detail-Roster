@@ -202,3 +202,24 @@ async function openSuperAdminPlacement() {
 }
 
 document.querySelector('#assign-cadet').onclick = openSuperAdminPlacement;
+
+async function blockScheduleDate() {
+  const defaultDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+  modal(`<p class="eyebrow">SCHEDULE AVAILABILITY</p><h2>Block a date</h2><p>Both Reveille and Retreat will be removed from sign-up. Any existing assignments are removed from the active roster and affected cadets are notified.</p><div class="form-row"><label>Date</label><input id="block-input" type="date" value="${defaultDate}"></div><div class="form-row"><label>Reason</label><input id="block-reason" placeholder="Holiday, closure, or other reason" required></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="confirm-block-date">Block date</button></div>`);
+  document.querySelector('#confirm-block-date').onclick = async () => {
+    const date = document.querySelector('#block-input').value;
+    const reason = document.querySelector('#block-reason').value.trim();
+    if (!date || !reason) return toast('Enter both a date and reason.');
+    const button = document.querySelector('#confirm-block-date'); button.disabled = true; button.textContent = 'Blocking…';
+    const { data, error } = await supabaseClient.rpc('admin_block_schedule_date', { target_date: date, block_reason: reason });
+    if (error) { button.disabled = false; button.textContent = 'Block date'; return toast(error.message); }
+    const result = Array.isArray(data) ? data[0] : data;
+    for (const recipientId of result?.recipient_ids || []) {
+      await supabaseClient.functions.invoke('send-notification', { body: { recipientId, eventType: 'DETAIL_BLOCKED', entityType: 'DATE', entityId: result.event_id, subject: `DET 607 Flag Detail cancelled — ${fmtDate(date)}`, html: `<h2>Flag detail cancelled</h2><p>Your Reveille or Retreat assignment on ${fmtDate(date)} has been removed.</p><p>Reason: ${reason}</p>` } });
+    }
+    close(); const { data: { session } } = await supabaseClient.auth.getSession(); await applySession(session);
+    toast(`Date blocked. ${result?.removed_assignments || 0} assignment${result?.removed_assignments === 1 ? '' : 's'} removed.`);
+  };
+}
+
+document.querySelector('#block-date').onclick = blockScheduleDate;
