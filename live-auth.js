@@ -44,21 +44,14 @@ function authStatus(message, type = '') {
 function detailLabel(type) { return type === 'REVEILLE' ? 'Reveille' : 'Retreat'; }
 
 async function loadLiveRoster(profile, email) {
-  const [{ data: details, error: detailError }, { data: assignments, error: assignmentError }] = await Promise.all([
-    supabaseClient.from('details').select('id,detail_date,detail_type,report_time,ceremony_time,blocked,blocked_reason').order('detail_date'),
-    supabaseClient.from('assignments').select('id,detail_id,cadet_id,position,removed_at,profiles!assignments_cadet_id_fkey(full_name)').is('removed_at', null)
-  ]);
-  if (detailError || assignmentError) throw detailError || assignmentError;
-  const mapped = (details || []).map(detail => {
-    const roster = (assignments || []).filter(item => item.detail_id === detail.id);
-    return {
-      id: detail.id, date: detail.detail_date, type: detailLabel(detail.detail_type),
-      report: String(detail.report_time).slice(0, 5), time: String(detail.ceremony_time).slice(0, 5),
-      cadets: roster.filter(item => item.position === 'CADET').map(item => item.profiles?.full_name || 'Cadet'),
-      poc: roster.find(item => item.position === 'POC_LEAD')?.profiles?.full_name || '',
-      status: detail.blocked ? 'blocked' : 'open', blocked: detail.blocked, blockedReason: detail.blocked_reason
-    };
-  });
+  const { data: details, error: detailError } = await supabaseClient.rpc('get_schedule_roster');
+  if (detailError) throw detailError;
+  const mapped = (details || []).map(detail => ({
+    id: detail.detail_id, date: detail.detail_date, type: detailLabel(detail.detail_type),
+    report: String(detail.report_time).slice(0, 5), time: String(detail.ceremony_time).slice(0, 5),
+    cadets: detail.cadet_names || [], poc: detail.poc_name || '',
+    status: detail.blocked ? 'blocked' : 'open', blocked: detail.blocked, blockedReason: detail.blocked_reason
+  }));
   data = { details: mapped, blocked: Object.fromEntries(mapped.filter(d => d.blocked).map(d => [d.date, d.blockedReason || 'Unavailable'])), requests: [], attendance: [], cases: [] };
   const displayName = profile.full_name || 'Cadet';
   const initials = displayName.split(/\s+/).filter(Boolean).map(name => name[0]).join('').slice(0, 2).toUpperCase();
