@@ -18,14 +18,15 @@ Deno.serve(async (request) => {
   if (!user) return new Response(JSON.stringify({ error: "Invalid session" }), { status: 401, headers });
 
   const adminClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-  const { data: sender } = await adminClient.from("profiles").select("active,cadet_type,admin_level").eq("id", user.id).single();
-  if (!sender?.active || !(sender.cadet_type === "POC" || ["ADMIN", "SUPER_ADMIN"].includes(sender.admin_level))) {
-    return new Response(JSON.stringify({ error: "Staff access required" }), { status: 403, headers });
-  }
-
   const { recipientId, subject, html, eventType, entityType, entityId } = await request.json();
   if (!recipientId || !subject || !html || !eventType || !entityType || !entityId) {
     return new Response(JSON.stringify({ error: "Missing notification fields" }), { status: 400, headers });
+  }
+  const { data: sender } = await adminClient.from("profiles").select("active,cadet_type,admin_level").eq("id", user.id).single();
+  const staff = sender?.cadet_type === "POC" || ["ADMIN", "SUPER_ADMIN"].includes(sender?.admin_level || "");
+  const ownAssignmentConfirmation = recipientId === user.id && eventType === "ASSIGNMENT_CONFIRMATION";
+  if (!sender?.active || (!staff && !ownAssignmentConfirmation)) {
+    return new Response(JSON.stringify({ error: "You can only send your own assignment confirmation" }), { status: 403, headers });
   }
 
   const { data: recipient } = await adminClient.from("profiles").select("email,active").eq("id", recipientId).single();

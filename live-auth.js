@@ -46,12 +46,14 @@ function detailLabel(type) { return type === 'REVEILLE' ? 'Reveille' : 'Retreat'
 async function loadLiveRoster(profile, email) {
   const { data: details, error: detailError } = await supabaseClient.rpc('get_schedule_roster');
   if (detailError) throw detailError;
-  const mapped = (details || []).map(detail => ({
+  const mapped = (details || []).map(detail => {
+    const assignedCadets = detail.cadet_names || [];
+    return {
     id: detail.detail_id, date: detail.detail_date, type: detailLabel(detail.detail_type),
     report: String(detail.report_time).slice(0, 5), time: String(detail.ceremony_time).slice(0, 5),
-    cadets: detail.cadet_names || [], poc: detail.poc_name || '',
+    cadets: [...assignedCadets, ...Array(Math.max(0, 3 - assignedCadets.length)).fill('')], poc: detail.poc_name || '',
     status: detail.blocked ? 'blocked' : 'open', blocked: detail.blocked, blockedReason: detail.blocked_reason
-  }));
+  }});
   data = { details: mapped, blocked: Object.fromEntries(mapped.filter(d => d.blocked).map(d => [d.date, d.blockedReason || 'Unavailable'])), requests: [], attendance: [], cases: [] };
   const displayName = profile.full_name || 'Cadet';
   const initials = displayName.split(/\s+/).filter(Boolean).map(name => name[0]).join('').slice(0, 2).toUpperCase();
@@ -124,4 +126,56 @@ signOutButton?.addEventListener('click', async () => {
   signOutButton.disabled = false;
 });
 
-window.signup=async detailId=>{const profile=window.det607CurrentProfile;if(!profile)return authStatus('Your roster profile is still loading.','error');const {error}=await supabaseClient.rpc('claim_open_detail',{target_detail_id:detailId});if(error)return typeof toast==='function'?toast(error.message):authStatus(error.message,'error');const {data:{session}}=await supabaseClient.auth.getSession();await applySession(session);typeof toast==='function'&&toast('Flag detail selected. It is now part of your schedule.');};
+async function sendOwnAssignmentEmail(profile, detail) {
+  const role = profile.cadet_type === 'POC' ? 'POC lead' : 'Cadet';
+  await supabaseClient.functions.invoke('send-notification', { body: {
+    recipientId: profile.id,
+    eventType: 'ASSIGNMENT_CONFIRMATION', entityType: 'DETAIL', entityId: detail.id,
+    subject: `DET 607 Flag Detail confirmed — ${detail.type} ${fmtDate(detail.date)}`,
+    html: `<h2>Flag detail confirmed</h2><p>You are confirmed as the ${role} for <strong>${detail.type}</strong> on ${fmtDate(detail.date)}.</p><p>Report: ${detail.report}. Ceremony: ${detail.time}.</p>`
+  }});
+}
+
+window.signup = detailId => {
+  const profile = window.det607CurrentProfile;
+  const detail = data.details.find(item => item.id === detailId);
+  if (!profile || !detail) return typeof toast === 'function' && toast('This detail is no longer available. Refresh and try again.');
+  const isPoc = profile.cadet_type === 'POC';
+  const slotLabel = isPoc ? 'POC lead' : 'Cadet';
+  if (isPoc && detail.poc) return toast('The POC lead position for this detail has already been claimed.');
+  if (!isPoc && !detail.cadets.some(name => !name)) return toast('All three GMC cadet positions for this detail have been claimed.');
+  modal(`<p class="eyebrow">CONFIRM FLAG DETAIL</p><h2>${detail.type} · ${fmtDate(detail.date)}</h2><p>You are claiming the <strong>${slotLabel}</strong> position. Report at ${detail.report}; ceremony at ${detail.time}.</p><p>This is first come, first served. Once confirmed, it becomes part of your schedule.</p><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="confirm-detail-claim">Yes, confirm this shift</button></div>`);
+  document.querySelector('#confirm-detail-claim').onclick = async () => {
+    const button = document.querySelector('#confirm-detail-claim');
+    button.disabled = true; button.textContent = 'Confirming…';
+    const { error } = await supabaseClient.rpc('claim_open_detail', { target_detail_id: detailId });
+    if (error) { button.disabled = false; button.textContent = 'Yes, confirm this shift'; return toast(error.message); }
+    await sendOwnAssignmentEmail(profile, detail);
+    close();
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    await applySession(session);
+    toast('Flag detail confirmed and added to your schedule.');
+  };
+};
+
+async function publishCurrentMonth() {
+  const monthKey = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+  if (!confirm(`Publish the ${new Date(year, month, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} schedule? Active cadets will be notified and eligible cadets can claim open slots.`)) return;
+  const { data, error } = await supabaseClient.rpc('publish_month_schedule', { target_month: monthKey });
+  if (error) return toast(error.message);
+  const published = Array.isArray(data) ? data[0] : data;
+  let emailed = 0;
+  for (const recipientId of published?.recipient_ids || []) {
+    const result = await supabaseClient.functions.invoke('send-notification', { body: {
+      recipientId, eventType: 'SCHEDULE_PUBLISHED', entityType: 'SCHEDULE', entityId: published.schedule_id,
+      subject: 'DET 607 Flag Detail schedule is open',
+      html: `<h2>Schedule published</h2><p>The ${new Date(year, month, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} flag-detail schedule is now open.</p><p>Sign in to review Reveille and Retreat details and claim an eligible open position.</p>`
+    }});
+    if (!result.error && !result.data?.error) emailed++;
+  }
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  await applySession(session);
+  toast(`Schedule published. ${emailed} active cadet notification${emailed === 1 ? '' : 's'} sent.`);
+}
+
+document.querySelector('#publish').onclick = publishCurrentMonth;
