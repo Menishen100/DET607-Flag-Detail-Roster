@@ -7,8 +7,10 @@ const supabaseClient = window.DET607_SUPABASE && window.supabase
   ? window.supabase.createClient(window.DET607_SUPABASE.url, window.DET607_SUPABASE.publishableKey)
   : null;
 window.det607Supabase = supabaseClient;
-const invitationMode=()=>new URLSearchParams(location.hash.slice(1)).get('type');
-function showSetup(email){authScreen.hidden=false;appShell.hidden=true;authForm.innerHTML=`<p class="eyebrow">DET 607 INVITATION</p><h2>Create your password</h2><p class="muted">Set a password for ${email}.</p><label>Email<input value="${email}" readonly></label><label>Password<input id="setup-password" type="password" autocomplete="new-password" required minlength="8"></label><label>Confirm password<input id="setup-confirm" type="password" autocomplete="new-password" required minlength="8"></label><button type="submit">Create account</button>`;authForm.onsubmit=async e=>{e.preventDefault();const p=$('#setup-password').value,c=$('#setup-confirm').value;if(p.length<8||p!==c)return authStatus('Use matching passwords with at least 8 characters.','error');const {error}=await supabaseClient.auth.updateUser({password:p});if(error)return authStatus(error.message,'error');history.replaceState({},document.title,location.pathname);const {data:{session}}=await supabaseClient.auth.getSession();applySession(session)}}
+const invitationMode=()=>{const query=new URLSearchParams(location.search),hash=new URLSearchParams(location.hash.slice(1));return hash.get('type')||query.get('type')||(query.has('code')?'invite':null)};
+function showSetup(email){authScreen.hidden=false;appShell.hidden=true;authForm.innerHTML=`<p class="eyebrow">DET 607 INVITATION</p><h2>Create your password</h2><p class="muted">Set a password for ${email}.</p><label>Email<input value="${email}" readonly></label><label>Password<input id="setup-password" type="password" autocomplete="new-password" required minlength="8"></label><label>Confirm password<input id="setup-confirm" type="password" autocomplete="new-password" required minlength="8"></label><button type="submit">Create account</button>`;authForm.onsubmit=async e=>{e.preventDefault();const p=document.querySelector('#setup-password').value,c=document.querySelector('#setup-confirm').value;if(p.length<8||p!==c)return authStatus('Use matching passwords with at least 8 characters.','error');const {error}=await supabaseClient.auth.updateUser({password:p});if(error)return authStatus(error.message,'error');history.replaceState({},document.title,location.pathname);const {data:{session}}=await supabaseClient.auth.getSession();applySession(session)}}
+
+function applyRoleAccess(profile){const staff=['ADMIN','SUPER_ADMIN'].includes(profile?.admin_level);document.querySelector('#publish').hidden=!staff;document.querySelector('#block-date').hidden=!staff;document.querySelector('#edit-times')?.parentElement&&(document.querySelector('#edit-times').parentElement.hidden=!staff);document.querySelector('#assign-cadet').hidden=!staff;document.querySelector('[data-view="attendance"]').hidden=!staff;document.querySelector('[data-view="counseling"]').hidden=!staff;document.querySelector('#record-attendance').hidden=!staff;document.querySelector('#new-case').hidden=!staff;}
 
 function authStatus(message, type = '') {
   authMessage.textContent = message;
@@ -44,7 +46,7 @@ async function loadLiveRoster(profile, email) {
   document.querySelector('#profile-name').textContent = displayName;
   document.querySelector('#profile-email').textContent = email || '';
   document.querySelector('#profile-role').textContent = profileRole;
-  document.dispatchEvent(new CustomEvent('det607:profile', { detail: { profile, email } }));
+  window.det607CurrentProfile=profile; applyRoleAccess(profile); document.dispatchEvent(new CustomEvent('det607:profile', { detail: { profile, email } }));
   document.querySelector('#page-title').textContent = `Welcome, ${displayName}.`;
   const first = mapped[0]?.date ? new Date(mapped[0].date + 'T12:00') : new Date();
   month = first.getMonth(); year = first.getFullYear(); render();
@@ -80,7 +82,8 @@ authForm.addEventListener('submit', async event => {
   if (data.session) await applySession(data.session);
 });
 if (supabaseClient) {
-  supabaseClient.auth.getSession().then(({ data: { session } }) => applySession(session));
+  const inviteCode=new URLSearchParams(location.search).get('code');
+  (inviteCode?supabaseClient.auth.exchangeCodeForSession(inviteCode):supabaseClient.auth.getSession()).then(({ data: { session }, error })=>{if(error)return authStatus(error.message,'error');applySession(session)});
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     window.setTimeout(() => applySession(session), 0);
   });
@@ -102,3 +105,5 @@ signOutButton?.addEventListener('click', async () => {
   authStatus('You have been signed out.', 'success');
   signOutButton.disabled = false;
 });
+
+window.signup=async detailId=>{const profile=window.det607CurrentProfile;if(!profile)return authStatus('Your roster profile is still loading.','error');const {error}=await supabaseClient.rpc('claim_open_detail',{target_detail_id:detailId});if(error)return typeof toast==='function'?toast(error.message):authStatus(error.message,'error');const {data:{session}}=await supabaseClient.auth.getSession();await applySession(session);typeof toast==='function'&&toast('Flag detail selected. It is now part of your schedule.');};

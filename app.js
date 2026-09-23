@@ -13,7 +13,7 @@ const seed={details:[
  attendance:[{detail:'Mon, Sep 21 · Reveille',cadet:'Jordan Lee',role:'Cadet',time:'08:24',status:'attended'},{detail:'Mon, Sep 21 · Reveille',cadet:'Amaya Carter',role:'Cadet',time:'08:25',status:'attended'},{detail:'Mon, Sep 21 · Reveille',cadet:'Cadet Capt. D. Brooks',role:'POC lead',time:'08:22',status:'attended'},{detail:'Fri, Sep 18 · Retreat',cadet:'Cadet 2d Lt. R. Allen',role:'POC lead',time:'—',status:'no-show'}],
  cases:[{id:1,cadet:'Cadet 2d Lt. R. Allen',detail:'Fri, Sep 18 · Retreat',initiator:'Maj. A. Reynolds',status:'Supervisor review',poc:true,facts:'POC lead did not report for assigned retreat detail. Cadet coverage was present.'}]};
  // Production starts empty; only the authenticated Supabase session can populate the roster.
- let data={details:[],blocked:{},requests:[],attendance:[],cases:[]},month=new Date().getMonth(),year=new Date().getFullYear();
+let data=window.det607Data={details:[],blocked:{},requests:[],attendance:[],cases:[]},month=new Date().getMonth(),year=new Date().getFullYear();
  const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)], save=()=>{};
  const fmtDate=s=>new Date(s+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}), initials=n=>n? n.split(' ').filter(x=>!['Cadet','Capt.','2d','Lt.'].includes(x)).map(x=>x[0]).slice(-2).join(''):'+';
  function openPositions(d){return d.cadets.filter(x=>!x).length+(d.poc?0:1)} function toast(t){let x=$('#toast');x.textContent=t;x.classList.add('show');setTimeout(()=>x.classList.remove('show'),3200)}
