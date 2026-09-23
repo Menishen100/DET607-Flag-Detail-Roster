@@ -35,7 +35,7 @@ function showSetup(email) {
 
 function showOnboarding(profile,email,session){authScreen.hidden=false;appShell.hidden=true;authForm.innerHTML=`<p class="eyebrow">CADET ONBOARDING</p><h2>Complete your profile</h2><p class="muted">Add your roster information before using the flag-detail portal.</p><label>Email<input value="${email}" readonly></label><label>Phone number<input id="onboard-phone" type="tel" required></label><label>Class level<select id="onboard-level" required><option value="">Select level</option>${[100,150,200,250,300,400,500,600].map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label><label>School<select id="onboard-school" required><option value="">Select school</option><option value="FSU">FSU — Fayetteville State University</option><option value="UNCP">UNCP — University of North Carolina at Pembroke</option><option value="MU">MU — Methodist University</option><option value="FTCC">FTCC — Fayetteville Technical Community College</option><option value="CU">CU — Campbell University</option><option value="OTHER">Other</option></select></label><label id="onboard-other-wrap" hidden>Other school name<input id="onboard-other"></label><button class="primary" type="submit">Complete profile</button>`;const school=document.querySelector('#onboard-school');school.onchange=()=>document.querySelector('#onboard-other-wrap').hidden=school.value!=='OTHER';authForm.onsubmit=async e=>{e.preventDefault();const schoolCode=school.value,other=document.querySelector('#onboard-other').value.trim();if(schoolCode==='OTHER'&&!other)return authStatus('Enter your school name.','error');const {error}=await supabaseClient.rpc('update_my_profile_details',{new_phone:document.querySelector('#onboard-phone').value.trim(),new_class_level:Number(document.querySelector('#onboard-level').value),new_flight_name:null,new_school_code:schoolCode,new_other_school_name:other||null});if(error)return authStatus(error.message,'error');const done=await supabaseClient.rpc('complete_my_onboarding');if(done.error)return authStatus(done.error.message,'error');sessionStorage.removeItem(inviteOnboardingKey);await applySession(session)}}
 
-function applyRoleAccess(profile){const staff=['ADMIN','SUPER_ADMIN'].includes(profile?.admin_level);document.querySelector('#publish').hidden=!staff;document.querySelector('#block-date').hidden=!staff;document.querySelector('#edit-times')?.parentElement&&(document.querySelector('#edit-times').parentElement.hidden=!staff);document.querySelector('#assign-cadet').hidden=!staff;document.querySelector('[data-view="attendance"]').hidden=!staff;document.querySelector('[data-view="counseling"]').hidden=!staff;document.querySelector('#record-attendance').hidden=!staff;document.querySelector('#new-case').hidden=!staff;}
+function applyRoleAccess(profile){const staff=['ADMIN','SUPER_ADMIN'].includes(profile?.admin_level),superAdmin=profile?.admin_level==='SUPER_ADMIN';document.querySelector('#publish').hidden=!superAdmin;document.querySelector('#assign-cadet').hidden=!superAdmin;document.querySelector('#block-date').hidden=!staff;document.querySelector('#edit-times')?.parentElement&&(document.querySelector('#edit-times').parentElement.hidden=!staff);document.querySelector('[data-view="attendance"]').hidden=!staff;document.querySelector('[data-view="counseling"]').hidden=!staff;document.querySelector('#record-attendance').hidden=!staff;document.querySelector('#new-case').hidden=!staff;}
 
 function authStatus(message, type = '') {
   authMessage.textContent = message;
@@ -179,3 +179,26 @@ async function publishCurrentMonth() {
 }
 
 document.querySelector('#publish').onclick = publishCurrentMonth;
+
+async function openSuperAdminPlacement() {
+  const profile = window.det607CurrentProfile;
+  if (profile?.admin_level !== 'SUPER_ADMIN') return toast('Only the Super Admin can place cadets into open positions.');
+  const openDetails = data.details.filter(detail => !detail.blocked && (detail.cadets.some(name => !name) || !detail.poc));
+  if (!openDetails.length) return toast('There are no unfilled positions in the published schedule.');
+  const { data: cadets, error } = await supabaseClient.from('profiles').select('id,full_name,cadet_type,active').eq('active', true).order('full_name');
+  if (error) return toast(error.message);
+  modal(`<p class="eyebrow">SUPER ADMIN PLACEMENT</p><h2>Place cadet in an open position</h2><p>GMC cadets fill GMC slots; POCs fill POC lead slots. The schedule is checked before saving.</p><div class="form-row"><label>Flag detail</label><select id="placement-detail">${openDetails.map(detail => `<option value="${detail.id}">${fmtDate(detail.date)} · ${detail.type} · ${detail.report}</option>`).join('')}</select></div><div class="form-row"><label>Cadet</label><select id="placement-cadet">${(cadets || []).map(cadet => `<option value="${cadet.id}">${cadet.full_name} (${cadet.cadet_type})</option>`).join('')}</select></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="place-cadet">Place cadet</button></div>`);
+  document.querySelector('#place-cadet').onclick = async () => {
+    const detailId = document.querySelector('#placement-detail').value;
+    const cadetId = document.querySelector('#placement-cadet').value;
+    const cadet = (cadets || []).find(item => item.id === cadetId);
+    const detail = data.details.find(item => item.id === detailId);
+    const button = document.querySelector('#place-cadet'); button.disabled = true; button.textContent = 'Placing…';
+    const { error: placementError } = await supabaseClient.rpc('super_admin_assign_detail', { target_detail_id: detailId, target_cadet_id: cadetId });
+    if (placementError) { button.disabled = false; button.textContent = 'Place cadet'; return toast(placementError.message); }
+    await supabaseClient.functions.invoke('send-notification', { body: { recipientId: cadetId, eventType: 'ADMIN_ASSIGNMENT', entityType: 'DETAIL', entityId: detailId, subject: `DET 607 Flag Detail assignment — ${detail.type} ${fmtDate(detail.date)}`, html: `<h2>Flag detail assignment</h2><p>You were placed on <strong>${detail.type}</strong> for ${fmtDate(detail.date)}. Report at ${detail.report}; ceremony at ${detail.time}.</p>` } });
+    close(); const { data: { session } } = await supabaseClient.auth.getSession(); await applySession(session); toast(`${cadet?.full_name || 'Cadet'} was placed on the detail.`);
+  };
+}
+
+document.querySelector('#assign-cadet').onclick = openSuperAdminPlacement;
