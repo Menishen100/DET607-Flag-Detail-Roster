@@ -69,7 +69,7 @@ async function loadLiveRoster(profile, email) {
   window.det607CurrentProfile=profile; applyRoleAccess(profile); document.dispatchEvent(new CustomEvent('det607:profile', { detail: { profile, email } }));
   document.querySelector('#page-title').textContent = `Welcome, ${displayName}.`;
   const first = mapped[0]?.date ? new Date(mapped[0].date + 'T12:00') : new Date();
-  month = first.getMonth(); year = first.getFullYear(); render();
+  month = first.getMonth(); year = first.getFullYear(); render(); syncScheduleMonthPicker();
 }
 
 async function applySession(session) {
@@ -158,9 +158,33 @@ window.signup = detailId => {
   };
 };
 
-async function publishCurrentMonth() {
-  const monthKey = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-  if (!confirm(`Publish the ${new Date(year, month, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} schedule? Active cadets will be notified and eligible cadets can claim open slots.`)) return;
+function monthKeyFromSelection(value) {
+  return value && /^\d{4}-\d{2}$/.test(value) ? `${value}-01` : null;
+}
+
+function scheduleMonthValue() {
+  return `${year}-${String(month + 1).padStart(2, '0')}`;
+}
+
+function syncScheduleMonthPicker() {
+  const picker = document.querySelector('#schedule-month');
+  if (picker) picker.value = scheduleMonthValue();
+}
+
+function selectScheduleMonth(value) {
+  const monthKey = monthKeyFromSelection(value);
+  if (!monthKey) return;
+  const selected = new Date(`${monthKey}T12:00`);
+  year = selected.getFullYear();
+  month = selected.getMonth();
+  renderCalendar();
+  syncScheduleMonthPicker();
+}
+
+async function publishSelectedMonth(monthKey) {
+  const selected = new Date(`${monthKey}T12:00`);
+  const publishLabel = selected.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  if (!confirm(`Publish the ${publishLabel} schedule? Weekday Reveille and Retreat details will be created. Active cadets will be notified and eligible cadets can claim open slots.`)) return;
   const { data, error } = await supabaseClient.rpc('publish_month_schedule', { target_month: monthKey });
   if (error) return toast(error.message);
   const published = Array.isArray(data) ? data[0] : data;
@@ -169,7 +193,7 @@ async function publishCurrentMonth() {
     const result = await supabaseClient.functions.invoke('send-notification', { body: {
       recipientId, eventType: 'SCHEDULE_PUBLISHED', entityType: 'SCHEDULE', entityId: published.schedule_id,
       subject: 'DET 607 Flag Detail schedule is open',
-      html: `<h2>Schedule published</h2><p>The ${new Date(year, month, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} flag-detail schedule is now open.</p><p>Sign in to review Reveille and Retreat details and claim an eligible open position.</p>`
+      html: `<h2>Schedule published</h2><p>The ${publishLabel} flag-detail schedule is now open.</p><p>Sign in to review Reveille and Retreat details and claim an eligible open position.</p>`
     }});
     if (!result.error && !result.data?.error) emailed++;
   }
@@ -178,7 +202,33 @@ async function publishCurrentMonth() {
   toast(`Schedule published. ${emailed} active cadet notification${emailed === 1 ? '' : 's'} sent.`);
 }
 
+function publishCurrentMonth() {
+  const current = scheduleMonthValue();
+  modal(`<p class="eyebrow">SCHEDULE PUBLICATION</p><h2>Choose a month to publish</h2><p>Publishing creates Reveille and Retreat on every weekday only. Each detail has three GMC slots and one POC lead slot.</p><div class="form-row"><label for="publish-month">Schedule month</label><input id="publish-month" type="month" value="${current}" min="${new Date().toISOString().slice(0, 7)}"></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="confirm-publish-month">Continue</button></div>`);
+  document.querySelector('#confirm-publish-month').onclick = () => {
+    const monthKey = monthKeyFromSelection(document.querySelector('#publish-month').value);
+    if (!monthKey) return toast('Select a schedule month.');
+    close();
+    selectScheduleMonth(monthKey.slice(0, 7));
+    publishSelectedMonth(monthKey);
+  };
+}
+
 document.querySelector('#publish').onclick = publishCurrentMonth;
+document.querySelector('#schedule-month').onchange = event => selectScheduleMonth(event.target.value);
+document.querySelector('#previous-month').onclick = () => {
+  month -= 1;
+  if (month < 0) { month = 11; year -= 1; }
+  renderCalendar();
+  syncScheduleMonthPicker();
+};
+document.querySelector('#next-month').onclick = () => {
+  month += 1;
+  if (month > 11) { month = 0; year += 1; }
+  renderCalendar();
+  syncScheduleMonthPicker();
+};
+syncScheduleMonthPicker();
 
 async function openSuperAdminPlacement() {
   const profile = window.det607CurrentProfile;
