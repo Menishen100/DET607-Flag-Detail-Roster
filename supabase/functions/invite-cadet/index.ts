@@ -4,10 +4,12 @@ Deno.serve(async request=>{
  if(request.method==='OPTIONS')return new Response('ok',{headers});
  if(request.method!=='POST')return new Response(JSON.stringify({error:'Method not allowed'}),{status:405,headers});
  const token=request.headers.get('Authorization');if(!token)return new Response(JSON.stringify({error:'Sign-in is required'}),{status:401,headers});
- const url=Deno.env.get('SUPABASE_URL')!,anon=Deno.env.get('SUPABASE_ANON_KEY')!,service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+ const url=Deno.env.get('SUPABASE_URL')!,anon=Deno.env.get('SUPABASE_ANON_KEY')!,secretKeys=JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS')||'{}') as Record<string,string>,service=Object.values(secretKeys).find(value=>typeof value==='string')||Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
  const userClient=createClient(url,anon,{global:{headers:{Authorization:token}}}),{data:{user},error:userError}=await userClient.auth.getUser();
  if(userError||!user)return new Response(JSON.stringify({error:'Invalid session'}),{status:401,headers});
- const admin=createClient(url,service),{data:caller}=await admin.from('profiles').select('admin_level,active').eq('id',user.id).maybeSingle();
+ const {data:caller,error:callerError}=await userClient.rpc('get_my_profile').maybeSingle();
+ if(callerError)return new Response(JSON.stringify({error:`Administrator lookup failed: ${callerError.message}`}),{status:500,headers});
+ const admin=createClient(url,service);
  if(!caller?.active||!['ADMIN','SUPER_ADMIN'].includes(caller.admin_level))return new Response(JSON.stringify({error:'Administrator access is required'}),{status:403,headers});
  const {fullName,email,cadetType}=await request.json(),normalizedEmail=String(email||'').trim().toLowerCase();
  if(!String(fullName||'').trim()||!/^\S+@\S+\.\S+$/.test(normalizedEmail)||!['GMC','POC'].includes(cadetType))return new Response(JSON.stringify({error:'Name, valid email, and classification are required'}),{status:400,headers});
