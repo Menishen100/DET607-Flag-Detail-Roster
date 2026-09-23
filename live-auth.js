@@ -61,6 +61,8 @@ async function applySession(session) {
     authStatus('This account is not yet on the active DET 607 roster. Ask the roster administrator to create or activate it.', 'error');
     return;
   }
+  // A profile changes from "Pending invite" to "Active" when the cadet first signs in.
+  await supabaseClient.rpc('complete_my_onboarding');
   try { await loadLiveRoster(profile, session.user?.email); authScreen.hidden = true; appShell.hidden = false; }
   catch (loadError) { authStatus(`Roster access is configured, but the schedule could not load: ${loadError.message}`, 'error'); }
 }
