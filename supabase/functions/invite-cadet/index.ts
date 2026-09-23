@@ -13,7 +13,11 @@ Deno.serve(async request=>{
  if(!caller?.active||!['ADMIN','SUPER_ADMIN'].includes(caller.admin_level))return new Response(JSON.stringify({error:'Administrator access is required'}),{status:403,headers});
  const {fullName,email,cadetType}=await request.json(),normalizedEmail=String(email||'').trim().toLowerCase();
  if(!String(fullName||'').trim()||!/^\S+@\S+\.\S+$/.test(normalizedEmail)||!['GMC','POC'].includes(cadetType))return new Response(JSON.stringify({error:'Name, valid email, and classification are required'}),{status:400,headers});
- const {data:invited,error:inviteError}=await admin.auth.admin.generateLink({type:'invite',email:normalizedEmail,options:{redirectTo:'https://det607flagdetail.com/',data:{full_name:String(fullName).trim()}}});
+ let inviteResult=await admin.auth.admin.generateLink({type:'invite',email:normalizedEmail,options:{redirectTo:'https://det607flagdetail.com/',data:{full_name:String(fullName).trim()}}});
+ // A prior test can leave an Auth account without a roster profile. Give that cadet
+ // a password-setup link rather than rejecting the administrator's resend request.
+ if(inviteResult.error?.message.toLowerCase().includes('already registered'))inviteResult=await admin.auth.admin.generateLink({type:'recovery',email:normalizedEmail,options:{redirectTo:'https://det607flagdetail.com/'}});
+ const {data:invited,error:inviteError}=inviteResult;
  if(inviteError||!invited.user||!invited.properties?.action_link)return new Response(JSON.stringify({error:inviteError?.message||'Invite could not be created'}),{status:400,headers});
  const {error:profileError}=await userClient.rpc('admin_create_invited_cadet_profile',{target_id:invited.user.id,new_name:String(fullName).trim(),new_email:normalizedEmail,new_cadet_type:cadetType});
  if(profileError)return new Response(JSON.stringify({error:profileError.message}),{status:500,headers});
