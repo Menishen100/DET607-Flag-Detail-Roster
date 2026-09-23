@@ -7,10 +7,33 @@ const supabaseClient = window.DET607_SUPABASE && window.supabase
   ? window.supabase.createClient(window.DET607_SUPABASE.url, window.DET607_SUPABASE.publishableKey)
   : null;
 window.det607Supabase = supabaseClient;
-const invitationMode=()=>{const query=new URLSearchParams(location.search),hash=new URLSearchParams(location.hash.slice(1));return hash.get('type')||query.get('type')||(query.has('code')||query.has('invite')?'invite':null)};
-function showSetup(email){authScreen.hidden=false;appShell.hidden=true;authForm.innerHTML=`<p class="eyebrow">DET 607 INVITATION</p><h2>Create your password</h2><p class="muted">Set a password for ${email}.</p><label>Email<input value="${email}" readonly></label><label>Password<input id="setup-password" type="password" autocomplete="new-password" required minlength="8"></label><label>Confirm password<input id="setup-confirm" type="password" autocomplete="new-password" required minlength="8"></label><button type="submit">Create account</button>`;authForm.onsubmit=async e=>{e.preventDefault();const p=document.querySelector('#setup-password').value,c=document.querySelector('#setup-confirm').value;if(p.length<8||p!==c)return authStatus('Use matching passwords with at least 8 characters.','error');const {error}=await supabaseClient.auth.updateUser({password:p});if(error)return authStatus(error.message,'error');history.replaceState({},document.title,location.pathname);const {data:{session}}=await supabaseClient.auth.getSession();applySession(session)}}
+const invitationMode = () => {
+  const query = new URLSearchParams(location.search);
+  const hash = new URLSearchParams(location.hash.slice(1));
+  return hash.get('type') || query.get('type') || (query.has('code') || query.has('invite') ? 'invite' : null);
+};
+const inviteOnboardingKey = 'det607-invite-onboarding';
+const isInviteOnboarding = () => sessionStorage.getItem(inviteOnboardingKey) === '1';
 
-function showOnboarding(profile,email,session){authScreen.hidden=false;appShell.hidden=true;authForm.innerHTML=`<p class="eyebrow">CADET ONBOARDING</p><h2>Complete your profile</h2><p class="muted">Add your roster information before using the flag-detail portal.</p><label>Email<input value="${email}" readonly></label><label>Phone number<input id="onboard-phone" type="tel" required></label><label>Class level<select id="onboard-level" required><option value="">Select level</option>${[100,150,200,250,300,400,500,600].map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label><label>Flight<select id="onboard-flight" required><option value="">Select flight</option>${['Alpha Flight','Bravo Flight','Charlie Flight','Delta Flight','POC Flight'].map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label><label>School<select id="onboard-school" required><option value="">Select school</option><option value="FSU">FSU — Fayetteville State University</option><option value="UNCP">UNCP — University of North Carolina at Pembroke</option><option value="MU">MU — Methodist University</option><option value="FTCC">FTCC — Fayetteville Technical Community College</option><option value="CU">CU — Campbell University</option><option value="OTHER">Other</option></select></label><label id="onboard-other-wrap" hidden>Other school name<input id="onboard-other"></label><button class="primary" type="submit">Complete profile</button>`;const school=document.querySelector('#onboard-school');school.onchange=()=>document.querySelector('#onboard-other-wrap').hidden=school.value!=='OTHER';authForm.onsubmit=async e=>{e.preventDefault();const schoolCode=school.value,other=document.querySelector('#onboard-other').value.trim();if(schoolCode==='OTHER'&&!other)return authStatus('Enter your school name.','error');const {error}=await supabaseClient.rpc('update_my_profile_details',{new_phone:document.querySelector('#onboard-phone').value.trim(),new_class_level:Number(document.querySelector('#onboard-level').value),new_flight_name:document.querySelector('#onboard-flight').value,new_school_code:schoolCode,new_other_school_name:other||null});if(error)return authStatus(error.message,'error');const done=await supabaseClient.rpc('complete_my_onboarding');if(done.error)return authStatus(done.error.message,'error');await applySession(session)}}
+function showSetup(email) {
+  authScreen.hidden = false;
+  appShell.hidden = true;
+  authForm.innerHTML = `<p class="eyebrow">DET 607 INVITATION</p><h2>Create your password</h2><p class="muted">Set a password for ${email}.</p><label>Email<input value="${email}" readonly></label><label>Password<input id="setup-password" type="password" autocomplete="new-password" required minlength="8"></label><label>Confirm password<input id="setup-confirm" type="password" autocomplete="new-password" required minlength="8"></label><button type="submit">Create account</button>`;
+  authForm.onsubmit = async event => {
+    event.preventDefault();
+    const password = document.querySelector('#setup-password').value;
+    const confirm = document.querySelector('#setup-confirm').value;
+    if (password.length < 8 || password !== confirm) return authStatus('Use matching passwords with at least 8 characters.', 'error');
+    const { error } = await supabaseClient.auth.updateUser({ password });
+    if (error) return authStatus(error.message, 'error');
+    sessionStorage.setItem(inviteOnboardingKey, '1');
+    history.replaceState({}, document.title, location.pathname);
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    applySession(session);
+  };
+}
+
+function showOnboarding(profile,email,session){authScreen.hidden=false;appShell.hidden=true;authForm.innerHTML=`<p class="eyebrow">CADET ONBOARDING</p><h2>Complete your profile</h2><p class="muted">Add your roster information before using the flag-detail portal.</p><label>Email<input value="${email}" readonly></label><label>Phone number<input id="onboard-phone" type="tel" required></label><label>Class level<select id="onboard-level" required><option value="">Select level</option>${[100,150,200,250,300,400,500,600].map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label><label>School<select id="onboard-school" required><option value="">Select school</option><option value="FSU">FSU — Fayetteville State University</option><option value="UNCP">UNCP — University of North Carolina at Pembroke</option><option value="MU">MU — Methodist University</option><option value="FTCC">FTCC — Fayetteville Technical Community College</option><option value="CU">CU — Campbell University</option><option value="OTHER">Other</option></select></label><label id="onboard-other-wrap" hidden>Other school name<input id="onboard-other"></label><button class="primary" type="submit">Complete profile</button>`;const school=document.querySelector('#onboard-school');school.onchange=()=>document.querySelector('#onboard-other-wrap').hidden=school.value!=='OTHER';authForm.onsubmit=async e=>{e.preventDefault();const schoolCode=school.value,other=document.querySelector('#onboard-other').value.trim();if(schoolCode==='OTHER'&&!other)return authStatus('Enter your school name.','error');const {error}=await supabaseClient.rpc('update_my_profile_details',{new_phone:document.querySelector('#onboard-phone').value.trim(),new_class_level:Number(document.querySelector('#onboard-level').value),new_flight_name:null,new_school_code:schoolCode,new_other_school_name:other||null});if(error)return authStatus(error.message,'error');const done=await supabaseClient.rpc('complete_my_onboarding');if(done.error)return authStatus(done.error.message,'error');sessionStorage.removeItem(inviteOnboardingKey);await applySession(session)}}
 
 function applyRoleAccess(profile){const staff=['ADMIN','SUPER_ADMIN'].includes(profile?.admin_level);document.querySelector('#publish').hidden=!staff;document.querySelector('#block-date').hidden=!staff;document.querySelector('#edit-times')?.parentElement&&(document.querySelector('#edit-times').parentElement.hidden=!staff);document.querySelector('#assign-cadet').hidden=!staff;document.querySelector('[data-view="attendance"]').hidden=!staff;document.querySelector('[data-view="counseling"]').hidden=!staff;document.querySelector('#record-attendance').hidden=!staff;document.querySelector('#new-case').hidden=!staff;}
 
@@ -56,7 +79,7 @@ async function loadLiveRoster(profile, email) {
 
 async function applySession(session) {
   if (!session) { authScreen.hidden = false; appShell.hidden = true; return; }
-  if(['invite','recovery'].includes(invitationMode()))return showSetup(session.user?.email||'');
+  if (['invite', 'recovery'].includes(invitationMode())) return showSetup(session.user?.email || '');
   authStatus('Checking roster access…');
   const { data: profile, error } = await supabaseClient.rpc('get_my_profile').maybeSingle();
   if (error) {
@@ -68,7 +91,7 @@ async function applySession(session) {
     authStatus('This account is not yet on the active DET 607 roster. Ask the roster administrator to create or activate it.', 'error');
     return;
   }
-  if(!profile.onboarding_complete)return showOnboarding(profile,session.user?.email||'',session);
+  if (!profile.onboarding_complete && isInviteOnboarding()) return showOnboarding(profile, session.user?.email || '', session);
   try { await loadLiveRoster(profile, session.user?.email); authScreen.hidden = true; appShell.hidden = false; }
   catch (loadError) { authStatus(`Roster access is configured, but the schedule could not load: ${loadError.message}`, 'error'); }
 }
