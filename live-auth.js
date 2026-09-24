@@ -114,6 +114,13 @@ async function monthlyShiftCounts(detailDate) {
   return new Map((counts || []).map(item => [item.cadet_id, Number(item.shift_count) || 0]));
 }
 
+async function deliverNotification(payload) {
+  const { data: result, error } = await supabaseClient.functions.invoke('send-notification', { body: payload });
+  if (error) throw error;
+  if (!result?.ok) throw new Error(result?.error || 'Notification could not be sent');
+  return result;
+}
+
 window.detailModal = async id => {
   const detail = data.details.find(item => String(item.id) === String(id));
   if (!detail) return toast('This flag detail is no longer available.');
@@ -157,14 +164,14 @@ window.detailModal = async id => {
           const { error: assignError } = await supabaseClient.rpc('admin_assign_detail', { target_detail_id: detail.id, target_cadet_id: cadetId });
           if (assignError) throw assignError;
           completed += 1;
-          await supabaseClient.functions.invoke('send-notification', { body: { recipientId: cadetId, eventType: 'ADMIN_ASSIGNMENT', entityType: 'DETAIL', entityId: detail.id, subject: `DET 607 Flag Detail assignment — ${detail.type}`, html: `<p>You were assigned to ${detail.type} on ${fmtDate(detail.date)}. Report at ${detail.report}.</p>` } });
+          await deliverNotification({ recipientId: cadetId, eventType: 'ADMIN_ASSIGNMENT', entityType: 'DETAIL', entityId: detail.id, subject: `DET 607 Flag Detail assignment — ${detail.type}`, html: `<h2>DET 607 Flag Detail assignment</h2><p>You were assigned to <strong>${detail.type}</strong> on ${fmtDate(detail.date)}.</p><p>Report at ${detail.report}; ceremony at ${detail.time}.</p>` });
         }
         for (const { currentCadetId, replacementId } of replacements) {
           const { error: replacementError } = await supabaseClient.rpc('super_admin_replace_detail_assignment', { target_detail_id: detail.id, current_cadet_id: currentCadetId, replacement_cadet_id: replacementId });
           if (replacementError) throw replacementError;
           completed += 1;
-          await supabaseClient.functions.invoke('send-notification', { body: { recipientId: currentCadetId, eventType: 'ASSIGNMENT_UPDATED', entityType: 'DETAIL', entityId: detail.id, subject: `DET 607 Flag Detail assignment updated — ${detail.type}`, html: `<p>You are no longer assigned to ${detail.type} on ${fmtDate(detail.date)}.</p>` } });
-          await supabaseClient.functions.invoke('send-notification', { body: { recipientId: replacementId, eventType: 'ADMIN_ASSIGNMENT', entityType: 'DETAIL', entityId: detail.id, subject: `DET 607 Flag Detail assignment — ${detail.type}`, html: `<p>You were assigned to ${detail.type} on ${fmtDate(detail.date)}. Report at ${detail.report}.</p>` } });
+          await deliverNotification({ recipientId: currentCadetId, eventType: 'ASSIGNMENT_UPDATED', entityType: 'DETAIL', entityId: detail.id, subject: `DET 607 Flag Detail assignment updated — ${detail.type}`, html: `<p>You are no longer assigned to ${detail.type} on ${fmtDate(detail.date)}.</p>` });
+          await deliverNotification({ recipientId: replacementId, eventType: 'ADMIN_ASSIGNMENT', entityType: 'DETAIL', entityId: detail.id, subject: `DET 607 Flag Detail assignment — ${detail.type}`, html: `<h2>DET 607 Flag Detail assignment</h2><p>You were assigned to <strong>${detail.type}</strong> on ${fmtDate(detail.date)}.</p><p>Report at ${detail.report}; ceremony at ${detail.time}.</p>` });
         }
       } catch (saveError) {
         toast(`${completed ? `${completed} assignment(s) saved. ` : ''}${saveError.message}`);
@@ -305,12 +312,12 @@ signOutButton?.addEventListener('click', async () => {
 
 async function sendOwnAssignmentEmail(profile, detail) {
   const role = profile.cadet_type === 'POC' ? 'POC lead' : 'Cadet';
-  await supabaseClient.functions.invoke('send-notification', { body: {
+  await deliverNotification({
     recipientId: profile.id,
     eventType: 'ASSIGNMENT_CONFIRMATION', entityType: 'DETAIL', entityId: detail.id,
     subject: `DET 607 Flag Detail confirmed — ${detail.type} ${fmtDate(detail.date)}`,
-    html: `<h2>Flag detail confirmed</h2><p>You are confirmed as the ${role} for <strong>${detail.type}</strong> on ${fmtDate(detail.date)}.</p><p>Report: ${detail.report}. Ceremony: ${detail.time}.</p>`
-  }});
+    html: `<h2>Your DET 607 Flag Detail is confirmed</h2><p>You selected and confirmed the <strong>${role}</strong> position for <strong>${detail.type}</strong> on ${fmtDate(detail.date)}.</p><p>Report: ${detail.report}. Ceremony: ${detail.time}.</p>`
+  });
 }
 
 window.signup = async detailId => {
@@ -330,7 +337,8 @@ window.signup = async detailId => {
     button.disabled = true; button.textContent = 'Confirming…';
     const { error } = await supabaseClient.rpc('claim_open_detail', { target_detail_id: detailId });
     if (error) { button.disabled = false; button.textContent = 'Yes, confirm this shift'; return toast(error.message); }
-    await sendOwnAssignmentEmail(profile, detail);
+    try { await sendOwnAssignmentEmail(profile, detail); }
+    catch (notificationError) { toast(`Shift confirmed, but the email could not be sent: ${notificationError.message}`); }
     close();
     const { data: { session } } = await supabaseClient.auth.getSession();
     await applySession(session);

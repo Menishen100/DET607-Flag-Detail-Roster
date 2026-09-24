@@ -2,7 +2,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const headers = {
   "Access-Control-Allow-Origin": "https://det607flagdetail.com",
-  "Access-Control-Allow-Headers": "authorization, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Content-Type": "application/json",
 };
 
@@ -17,7 +18,10 @@ Deno.serve(async (request) => {
   const { data: { user } } = await userClient.auth.getUser();
   if (!user) return new Response(JSON.stringify({ error: "Invalid session" }), { status: 401, headers });
 
-  const adminClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}") as Record<string, string>;
+  const serviceKey = Object.values(secretKeys).find(value => typeof value === "string") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!serviceKey) return new Response(JSON.stringify({ error: "Notification service configuration is incomplete" }), { status: 500, headers });
+  const adminClient = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey);
   const { recipientId, subject, html, eventType, entityType, entityId } = await request.json();
   if (!recipientId || !subject || !html || !eventType || !entityType || !entityId) {
     return new Response(JSON.stringify({ error: "Missing notification fields" }), { status: 400, headers });
@@ -32,12 +36,14 @@ Deno.serve(async (request) => {
   const { data: recipient } = await adminClient.from("profiles").select("email,active").eq("id", recipientId).single();
   if (!recipient?.active || !recipient.email) return new Response(JSON.stringify({ error: "Recipient unavailable" }), { status: 404, headers });
 
+  const resendKey = Deno.env.get("RESEND_API_KEY");
+  if (!resendKey) return new Response(JSON.stringify({ error: "Email provider is not configured" }), { status: 500, headers });
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: { Authorization: `Bearer ${Deno.env.get("RESEND_API_KEY")}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({ from: "DET 607 Flag Detail <noreply@mail.det607flagdetail.com>", to: [recipient.email], subject, html }),
   });
-  if (!response.ok) return new Response(JSON.stringify({ error: "Email provider rejected the request" }), { status: 502, headers });
+  if (!response.ok) return new Response(JSON.stringify({ error: `Email provider rejected the request: ${(await response.text()).slice(0, 300)}` }), { status: 502, headers });
 
   await adminClient.from("notification_outbox").insert({ recipient_id: recipientId, event_type: eventType, entity_type: entityType, entity_id: entityId, delivered_at: new Date().toISOString() });
   return new Response(JSON.stringify({ ok: true }), { headers });
