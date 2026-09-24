@@ -123,9 +123,18 @@ window.detailModal = id => {
 async function openAdminPlacement(detail) {
   const { data: cadets, error } = await supabaseClient.from('profiles').select('id,full_name,cadet_type').eq('active', true).order('full_name');
   if (error) return toast(error.message);
-  modal(`<p class="eyebrow">STAFF ASSIGNMENT</p><h2>Assign cadet</h2><p>GMC cadets fill GMC slots; POCs fill the POC lead slot.</p><div class="form-row"><label>Cadet</label><select id="staff-cadet">${cadets.map(c => `<option value="${c.id}">${escapeRosterText(c.full_name)} (${c.cadet_type})</option>`).join('')}</select></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="save-staff-assignment">Assign</button></div>`);
+  const openGmc = detail.cadets.filter(name => !name).length;
+  const openPoc = !detail.poc;
+  const gmcs = (cadets || []).filter(cadet => cadet.cadet_type === 'GMC');
+  const pocs = (cadets || []).filter(cadet => cadet.cadet_type === 'POC');
+  const choices = [openGmc ? '<option value="GMC">GMC position</option>' : '', openPoc ? '<option value="POC">POC lead position</option>' : ''].join('');
+  if (!choices) return toast('This flag detail is fully staffed.');
+  const cadetOptions = type => (type === 'POC' ? pocs : gmcs).map(cadet => `<option value="${cadet.id}">${escapeRosterText(cadet.full_name)}</option>`).join('') || '<option value="">No eligible cadets available</option>';
+  modal(`<p class="eyebrow">STAFF ASSIGNMENT</p><h2>Assign cadet</h2><p>Choose the open position first. The cadet list is limited to the correct classification.</p><div class="form-row"><label>Open position</label><select id="staff-position">${choices}</select></div><div class="form-row"><label>Eligible cadet</label><select id="staff-cadet">${cadetOptions(openGmc ? 'GMC' : 'POC')}</select></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="save-staff-assignment">Assign</button></div>`);
+  document.querySelector('#staff-position').onchange = event => { document.querySelector('#staff-cadet').innerHTML = cadetOptions(event.target.value); };
   document.querySelector('#save-staff-assignment').onclick = async () => {
     const cadetId = document.querySelector('#staff-cadet').value;
+    if (!cadetId) return toast('There is no eligible cadet available for this position.');
     const cadet = cadets.find(item => item.id === cadetId);
     const { error: assignError } = await supabaseClient.rpc('admin_assign_detail', { target_detail_id: detail.id, target_cadet_id: cadetId });
     if (assignError) return toast(assignError.message);
