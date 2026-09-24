@@ -306,6 +306,14 @@ const profileMenu = document.querySelector('#profile-menu');
 const profilePopover = document.querySelector('#profile-popover');
 const signOutButton = document.querySelector('#sign-out');
 document.querySelector('#edit-important-contact')?.addEventListener('click', openImportantContactEditor);
+document.querySelector('#important-information-toggle')?.addEventListener('click', () => {
+  const content = document.querySelector('#important-information-content');
+  const toggle = document.querySelector('#important-information-toggle');
+  const opening = content.hidden;
+  content.hidden = !opening;
+  toggle.setAttribute('aria-expanded', String(opening));
+  toggle.querySelector('b').textContent = opening ? 'Hide details ▴' : 'View details ▾';
+});
 profileMenu?.addEventListener('click', () => {
   const opening = profilePopover.hidden;
   profilePopover.hidden = !opening;
