@@ -75,6 +75,37 @@
   background: #f5f6f7;
 }
 
+/* Reveille is the cool morning color; Retreat is the warm evening color. */
+.mini-detail.reveille-detail,
+.monthly-roster-card.reveille-roster,
+.detail-card.reveille-open {
+  border-left: 4px solid #2678b9;
+}
+
+.mini-detail.reveille-detail {
+  background: #edf7ff;
+}
+
+.mini-detail.retreat-detail,
+.monthly-roster-card.retreat-roster,
+.detail-card.retreat-open {
+  border-left: 4px solid #bc6b2e;
+}
+
+.mini-detail.retreat-detail {
+  background: #fff4e9;
+}
+
+.monthly-roster-card.reveille-roster .eyebrow,
+.detail-card.reveille-open .date-pill {
+  color: #17649c;
+}
+
+.monthly-roster-card.retreat-roster .eyebrow,
+.detail-card.retreat-open .date-pill {
+  color: #a6531e;
+}
+
 @media (max-width: 720px) {
   .monthly-roster-card {
     flex-direction: column;

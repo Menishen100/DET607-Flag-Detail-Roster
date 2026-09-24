@@ -65,7 +65,8 @@ function renderCalendar() {
     const detailCards = details.map(detail => {
       const remainingGmc = detail.cadets.filter(name => !name).length;
       const pocStatus = detail.poc ? 'POC assigned' : 'POC open';
-      return `<div class="mini-detail ${detail.status === 'ready' ? 'ready-card' : ''}" onclick="detailModal('${detail.id}')"><strong>${escapeRosterText(detail.type)} · ${escapeRosterText(detail.time)}</strong><span>${remainingGmc} GMC open · ${pocStatus}</span></div>`;
+      const typeClass = detail.type === 'Reveille' ? 'reveille-detail' : 'retreat-detail';
+      return `<div class="mini-detail ${typeClass} ${detail.status === 'ready' ? 'ready-card' : ''}" onclick="detailModal('${detail.id}')"><strong>${escapeRosterText(detail.type)} · ${escapeRosterText(detail.time)}</strong><span>${remainingGmc} GMC open · ${pocStatus}</span></div>`;
     }).join('');
     cells.push(`<div class="cal-day ${blocked ? 'blocked-day' : ''}"><div class="cal-date">${day}</div>${blocked ? `<p class="blocked-note">${escapeRosterText(blocked)}</p>` : detailCards || '<p class="blocked-note">No detail</p>'}</div>`);
   }
@@ -84,7 +85,25 @@ function renderCalendar() {
     const openGmc = detail.cadets.filter(name => !name).length;
     const cadetText = namedCadets.length ? namedCadets.map(escapeRosterText).join(', ') : 'No GMC cadets assigned';
     const pocText = detail.poc ? escapeRosterText(detail.poc) : 'Open POC lead position';
-    return `<article class="monthly-roster-card ${detail.blocked ? 'blocked-roster-card' : ''}"><div><p class="eyebrow">${escapeRosterText(fmtDate(detail.date))} · ${escapeRosterText(detail.type)}</p><h3>Report ${escapeRosterText(detail.report)} · Ceremony ${escapeRosterText(detail.time)}</h3><p><strong>GMC (${namedCadets.length}/3):</strong> ${cadetText}</p><p><strong>POC lead:</strong> ${pocText}</p></div><div class="roster-slot-status">${detail.blocked ? '<span class="tag danger">Blocked</span>' : `<span class="tag ${openGmc || !detail.poc ? 'warn' : ''}">${openGmc} GMC open · ${detail.poc ? 'POC filled' : '1 POC open'}</span>`}<button class="secondary" onclick="detailModal('${detail.id}')">View roster</button></div></article>`;
+    const typeClass = detail.type === 'Reveille' ? 'reveille-roster' : 'retreat-roster';
+    return `<article class="monthly-roster-card ${typeClass} ${detail.blocked ? 'blocked-roster-card' : ''}"><div><p class="eyebrow">${escapeRosterText(fmtDate(detail.date))} · ${escapeRosterText(detail.type)}</p><h3>Report ${escapeRosterText(detail.report)} · Ceremony ${escapeRosterText(detail.time)}</h3><p><strong>GMC (${namedCadets.length}/3):</strong> ${cadetText}</p><p><strong>POC lead:</strong> ${pocText}</p></div><div class="roster-slot-status">${detail.blocked ? '<span class="tag danger">Blocked</span>' : `<span class="tag ${openGmc || !detail.poc ? 'warn' : ''}">${openGmc} GMC open · ${detail.poc ? 'POC filled' : '1 POC open'}</span>`}<button class="secondary" onclick="detailModal('${detail.id}')">View roster</button></div></article>`;
+  }).join('');
+}
+
+// Open Details is intentionally a concise sign-up board, not a duplicate roster.
+// It contains only active vacancies; the full assignment list belongs on Monthly Schedule.
+function renderOpen() {
+  const board = document.querySelector('#open-details');
+  const vacancies = data.details.filter(detail => !detail.blocked && openPositions(detail));
+  if (!vacancies.length) {
+    board.innerHTML = '<p class="muted">There are no open positions in the published schedule.</p>';
+    return;
+  }
+  board.innerHTML = vacancies.map(detail => {
+    const openGmc = detail.cadets.filter(name => !name).length;
+    const openPoc = detail.poc ? 0 : 1;
+    const typeClass = detail.type === 'Reveille' ? 'reveille-open' : 'retreat-open';
+    return `<article class="detail-card ${typeClass}"><div class="date-pill">${escapeRosterText(fmtDate(detail.date).split(' ')[1])}<small>${escapeRosterText(fmtDate(detail.date).split(' ')[0])} · ${escapeRosterText(detail.type)}</small></div><div class="card-main"><h3>Report ${escapeRosterText(detail.report)} · Ceremony ${escapeRosterText(detail.time)}</h3><p>${openGmc ? `${openGmc} GMC ${openGmc === 1 ? 'slot' : 'slots'} open` : 'GMC slots filled'}${openPoc ? ' · 1 POC lead slot open' : ' · POC lead filled'}</p><div class="tags">${openGmc ? `<span class="tag warn">${openGmc} GMC open</span>` : ''}${openPoc ? '<span class="tag danger">1 POC open</span>' : ''}</div></div><div class="card-actions"><button class="secondary" onclick="detailModal('${detail.id}')">View roster</button><button class="primary" onclick="signup('${detail.id}')">Select shift</button></div></article>`;
   }).join('');
 }
 
