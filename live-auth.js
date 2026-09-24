@@ -89,7 +89,7 @@ function renderCalendar() {
 }
 
 async function loadLiveRoster(profile, email) {
-  const { data: details, error: detailError } = await supabaseClient.rpc('get_schedule_roster');
+  const { data: details, error: detailError } = await supabaseClient.rpc('get_live_schedule_roster');
   if (detailError) throw detailError;
   const mapped = (details || []).map(detail => {
     const assignedCadets = detail.cadet_names || [];
