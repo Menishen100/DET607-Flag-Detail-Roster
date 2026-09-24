@@ -35,7 +35,7 @@ function showSetup(email) {
 
 function showOnboarding(profile,email,session){authScreen.hidden=false;appShell.hidden=true;authForm.innerHTML=`<p class="eyebrow">CADET ONBOARDING</p><h2>Complete your profile</h2><p class="muted">Add your roster information before using the flag-detail portal.</p><label>Email<input value="${email}" readonly></label><label>Phone number<input id="onboard-phone" type="tel" required></label><label>Class level<select id="onboard-level" required><option value="">Select level</option>${[100,150,200,250,300,400,500,600].map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label><label>School<select id="onboard-school" required><option value="">Select school</option><option value="FSU">FSU — Fayetteville State University</option><option value="UNCP">UNCP — University of North Carolina at Pembroke</option><option value="MU">MU — Methodist University</option><option value="FTCC">FTCC — Fayetteville Technical Community College</option><option value="CU">CU — Campbell University</option><option value="OTHER">Other</option></select></label><label id="onboard-other-wrap" hidden>Other school name<input id="onboard-other"></label><button class="primary" type="submit">Complete profile</button>`;const school=document.querySelector('#onboard-school');school.onchange=()=>document.querySelector('#onboard-other-wrap').hidden=school.value!=='OTHER';authForm.onsubmit=async e=>{e.preventDefault();const schoolCode=school.value,other=document.querySelector('#onboard-other').value.trim();if(schoolCode==='OTHER'&&!other)return authStatus('Enter your school name.','error');const {error}=await supabaseClient.rpc('update_my_profile_details',{new_phone:document.querySelector('#onboard-phone').value.trim(),new_class_level:Number(document.querySelector('#onboard-level').value),new_flight_name:null,new_school_code:schoolCode,new_other_school_name:other||null});if(error)return authStatus(error.message,'error');const done=await supabaseClient.rpc('complete_my_onboarding');if(done.error)return authStatus(done.error.message,'error');sessionStorage.removeItem(inviteOnboardingKey);await applySession(session)}}
 
-function applyRoleAccess(profile){const staff=['ADMIN','SUPER_ADMIN'].includes(profile?.admin_level),superAdmin=profile?.admin_level==='SUPER_ADMIN';document.querySelector('#publish').hidden=!superAdmin;document.querySelector('#assign-cadet').hidden=!superAdmin;document.querySelector('#block-date').hidden=!staff;document.querySelector('#edit-times')?.parentElement&&(document.querySelector('#edit-times').parentElement.hidden=!staff);document.querySelector('[data-view="attendance"]').hidden=!staff;document.querySelector('[data-view="counseling"]').hidden=!staff;document.querySelector('#record-attendance').hidden=!staff;document.querySelector('#new-case').hidden=!staff;document.querySelector('#edit-important-contact').hidden=!staff;}
+function applyRoleAccess(profile){const staff=['ADMIN','SUPER_ADMIN'].includes(profile?.admin_level),superAdmin=profile?.admin_level==='SUPER_ADMIN';document.querySelector('#publish').hidden=!superAdmin;document.querySelector('#assign-cadet').hidden=!superAdmin;document.querySelector('#block-date').hidden=!superAdmin;document.querySelector('#edit-times')?.parentElement&&(document.querySelector('#edit-times').parentElement.hidden=!staff);document.querySelector('[data-view="attendance"]').hidden=!staff;document.querySelector('[data-view="counseling"]').hidden=!staff;document.querySelector('#record-attendance').hidden=!staff;document.querySelector('#new-case').hidden=!staff;document.querySelector('#edit-important-contact').hidden=!staff;}
 
 async function loadImportantInformation(){const {data:settings,error}=await supabaseClient.rpc('get_portal_important_information_content');if(error)return;const setting=Array.isArray(settings)?settings[0]:settings;if(!setting)return;[['#important-reveille-title','reveille_title'],['#important-reveille-message','reveille_message'],['#important-retreat-title','retreat_title'],['#important-retreat-message','retreat_message'],['#important-dress-message','dress_message'],['#important-coverage-message','coverage_message'],['#important-missed-message','missed_message'],['#important-note','note_message'],['#important-contact-name','contact_name']].forEach(([selector,key])=>{if(setting[key])document.querySelector(selector).textContent=setting[key];});const email=document.querySelector('#important-contact-email');email.textContent=setting.contact_email;email.href=`mailto:${setting.contact_email}`;const discord=document.querySelector('#important-contact-discord');discord.textContent=setting.contact_discord?` or on Discord (${setting.contact_discord})`:'';}
 
@@ -51,6 +51,8 @@ function escapeRosterText(value) {
   return String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 }
 
+function setPortalToday(){const now=new Date();document.querySelector('#today-label').textContent=`${now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})} · DET 607 operations`;}
+
 // Replace the demo calendar renderer with a live monthly roster view. Staff can
 // see each confirmed cadet and every remaining GMC/POC position at a glance.
 function renderCalendar() {
@@ -58,6 +60,9 @@ function renderCalendar() {
   const last = new Date(year, month + 1, 0);
   const cells = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map(day => `<div class="day-head">${day}</div>`);
   const selectedMonth = `${year}-${String(month + 1).padStart(2, '0')}`;
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const canBlock = window.det607CurrentProfile?.admin_level === 'SUPER_ADMIN';
   const monthDetails = data.details.filter(detail => detail.date.startsWith(selectedMonth));
 
   for (let day = 1; day <= last.getDate(); day += 1) {
@@ -72,7 +77,7 @@ function renderCalendar() {
       const typeClass = detail.type === 'Reveille' ? 'reveille-detail' : 'retreat-detail';
       return `<div class="mini-detail ${typeClass} ${detail.status === 'ready' ? 'ready-card' : ''}" onclick="detailModal('${detail.id}')"><strong>${escapeRosterText(detail.type)} · ${escapeRosterText(detail.time)}</strong><span>${remainingGmc} GMC open · ${pocStatus}</span></div>`;
     }).join('');
-    cells.push(`<div class="cal-day ${blocked ? 'blocked-day' : ''}"><div class="cal-date">${day}</div>${blocked ? `<p class="blocked-note">${escapeRosterText(blocked)}</p>` : detailCards || '<p class="blocked-note">No detail</p>'}</div>`);
+    cells.push(`<div class="cal-day ${iso === todayKey ? 'today' : ''} ${blocked ? 'blocked-day' : ''}"><div class="cal-date">${day}</div>${blocked ? `<p class="blocked-note">${escapeRosterText(blocked)}</p>` : detailCards || '<p class="blocked-note">No detail</p>'}${canBlock && !blocked ? `<button class="text-button block-calendar-date" onclick="blockScheduleDate('${iso}')">Block date</button>` : ''}</div>`);
   }
 
   document.querySelector('#calendar').innerHTML = cells.join('');
@@ -257,7 +262,7 @@ async function loadLiveRoster(profile, email) {
   window.det607CurrentProfile=profile; applyRoleAccess(profile); await loadImportantInformation(); document.dispatchEvent(new CustomEvent('det607:profile', { detail: { profile, email } }));
   document.querySelector('#page-title').textContent = `Welcome, ${displayName}.`;
   const first = mapped[0]?.date ? new Date(mapped[0].date + 'T12:00') : new Date();
-  month = first.getMonth(); year = first.getFullYear(); render(); syncScheduleMonthPicker();
+  month = first.getMonth(); year = first.getFullYear(); render(); setPortalToday(); syncScheduleMonthPicker();
 }
 
 async function applySession(session) {
@@ -446,15 +451,32 @@ async function openSuperAdminPlacement() {
 
 document.querySelector('#assign-cadet').onclick = openSuperAdminPlacement;
 
-async function blockScheduleDate() {
-  const defaultDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-  modal(`<p class="eyebrow">SCHEDULE AVAILABILITY</p><h2>Block a date</h2><p>Both Reveille and Retreat will be removed from sign-up. Any existing assignments are removed from the active roster and affected cadets are notified.</p><div class="form-row"><label>Date</label><input id="block-input" type="date" value="${defaultDate}"></div><div class="form-row"><label>Reason</label><input id="block-reason" placeholder="Holiday, closure, or other reason" required></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="confirm-block-date">Block date</button></div>`);
+async function openScheduleException(){
+  if(!['ADMIN','SUPER_ADMIN'].includes(window.det607CurrentProfile?.admin_level))return toast('Administrator access is required.');
+  const selectedMonth=scheduleMonthValue(),details=data.details.filter(detail=>detail.date.startsWith(selectedMonth)&&!detail.blocked);
+  if(!details.length)return toast('Publish this month first, then select the weekday detail that needs a time exception.');
+  modal(`<p class="eyebrow">SCHEDULE EXCEPTION</p><h2>Edit a selected flag-detail date</h2><p>Choose the exact weekday and detail. This changes only that shift; the standard monthly times remain unchanged.</p><div class="form-row"><label>Scheduled detail</label><select id="exception-detail">${details.map(detail=>`<option value="${detail.id}">${fmtDate(detail.date)} · ${detail.type} · report ${detail.report}</option>`).join('')}</select></div><div class="form-row"><label>Report time</label><input id="exception-report" type="time" value="${details[0].report}"></div><div class="form-row"><label>Ceremony time</label><input id="exception-ceremony" type="time" value="${details[0].time}"></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="save-exception">Save exception</button></div>`);
+  const picker=document.querySelector('#exception-detail');
+  picker.onchange=()=>{const detail=details.find(item=>item.id===picker.value);document.querySelector('#exception-report').value=detail.report;document.querySelector('#exception-ceremony').value=detail.time;};
+  document.querySelector('#save-exception').onclick=async()=>{const detail=details.find(item=>item.id===picker.value),report=document.querySelector('#exception-report').value,ceremony=document.querySelector('#exception-ceremony').value;if(!report||!ceremony)return toast('Enter both the report and ceremony times.');const button=document.querySelector('#save-exception');button.disabled=true;button.textContent='Saving…';const {data:recipients,error}=await supabaseClient.rpc('admin_update_detail_times',{target_detail_id:detail.id,new_report_time:report,new_ceremony_time:ceremony});if(error){button.disabled=false;button.textContent='Save exception';return toast(error.message);}for(const recipientId of recipients||[])await deliverNotification({recipientId,eventType:'DETAIL_TIME_UPDATED',entityType:'DETAIL',entityId:detail.id,subject:`DET 607 Flag Detail time updated — ${detail.type}`,html:`<p>Your ${detail.type} on ${fmtDate(detail.date)} now reports at ${report}; ceremony is ${ceremony}.</p>`});close();const {data:{session}}=await supabaseClient.auth.getSession();await applySession(session);toast('Time exception saved.');};
+}
+
+document.querySelector('#create-detail').onclick = openScheduleException;
+
+async function blockScheduleDate(initialDate = '') {
+  if (window.det607CurrentProfile?.admin_level !== 'SUPER_ADMIN') return toast('Only the Super Admin can block a schedule date.');
+  const selectedMonth = scheduleMonthValue(), firstDay = `${selectedMonth}-01`, lastDay = new Date(year, month + 1, 0).getDate();
+  const available = data.details.filter(detail => detail.date.startsWith(selectedMonth) && !detail.blocked).map(detail => detail.date);
+  const fallback = available.find(date => new Date(`${date}T12:00`) >= new Date(new Date().setHours(0,0,0,0))) || available[0] || `${selectedMonth}-${String(Math.min(1 + ((8 - new Date(`${firstDay}T12:00`).getDay()) % 7), lastDay)).padStart(2, '0')}`;
+  modal(`<p class="eyebrow">SCHEDULE AVAILABILITY</p><h2>Block a date</h2><p>Choose a weekday in ${new Date(`${firstDay}T12:00`).toLocaleDateString('en-US',{month:'long',year:'numeric'})}. The reason will be displayed to cadets, and this date cannot be selected for a flag detail.</p><div class="form-row"><label>Date</label><input id="block-input" type="date" min="${firstDay}" max="${selectedMonth}-${String(lastDay).padStart(2, '0')}" value="${initialDate || fallback}"></div><div class="form-row"><label>Reason</label><input id="block-reason" placeholder="Holiday, closure, training event, or other reason" required></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="confirm-block-date">Confirm block</button></div>`);
   document.querySelector('#confirm-block-date').onclick = async () => {
     const date = document.querySelector('#block-input').value;
     const reason = document.querySelector('#block-reason').value.trim();
     if (!date || !reason) return toast('Enter both a date and reason.');
     const button = document.querySelector('#confirm-block-date'); button.disabled = true; button.textContent = 'Blocking…';
-    const { data, error } = await supabaseClient.rpc('admin_block_schedule_date', { target_date: date, block_reason: reason });
+    const day = new Date(`${date}T12:00`).getDay();
+    if (day === 0 || day === 6) { button.disabled = false; button.textContent = 'Confirm block'; return toast('There is no flag detail on weekends. Select a weekday.'); }
+    const { data, error } = await supabaseClient.rpc('super_admin_block_schedule_date', { target_date: date, block_reason: reason });
     if (error) { button.disabled = false; button.textContent = 'Block date'; return toast(error.message); }
     const result = Array.isArray(data) ? data[0] : data;
     for (const recipientId of result?.recipient_ids || []) {
