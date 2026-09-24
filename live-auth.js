@@ -131,6 +131,7 @@ window.detailModal = async id => {
       event.target.disabled = true;
       const { error: assignError } = await supabaseClient.rpc('admin_assign_detail', { target_detail_id: detail.id, target_cadet_id: cadetId });
       if (assignError) { event.target.disabled = false; event.target.value = ''; return toast(assignError.message); }
+      await supabaseClient.functions.invoke('send-notification', { body: { recipientId: cadetId, eventType: 'ADMIN_ASSIGNMENT', entityType: 'DETAIL', entityId: detail.id, subject: `DET 607 Flag Detail assignment — ${detail.type}`, html: `<p>You were assigned to ${detail.type} on ${fmtDate(detail.date)}. Report at ${detail.report}.</p>` } });
       const { data: { session } } = await supabaseClient.auth.getSession();
       await applySession(session); close(); toast('Cadet assigned to the selected position.');
     });
