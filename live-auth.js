@@ -107,18 +107,27 @@ function renderOpen() {
   }).join('');
 }
 
+async function monthlyShiftCounts(detailDate) {
+  const targetMonth = `${detailDate.slice(0, 7)}-01`;
+  const { data: counts, error } = await supabaseClient.rpc('get_monthly_shift_counts', { target_month: targetMonth });
+  if (error) throw error;
+  return new Map((counts || []).map(item => [item.cadet_id, Number(item.shift_count) || 0]));
+}
+
 window.detailModal = async id => {
   const detail = data.details.find(item => String(item.id) === String(id));
   if (!detail) return toast('This flag detail is no longer available.');
   const staff = ['ADMIN', 'SUPER_ADMIN'].includes(window.det607CurrentProfile?.admin_level);
-  let gmcs = [], pocs = [];
+  let gmcs = [], pocs = [], shiftCounts = new Map();
   if (staff) {
     const { data: cadets, error } = await supabaseClient.from('profiles').select('id,full_name,cadet_type').eq('active', true).order('full_name');
     if (error) return toast(error.message);
     gmcs = (cadets || []).filter(cadet => cadet.cadet_type === 'GMC');
     pocs = (cadets || []).filter(cadet => cadet.cadet_type === 'POC');
+    try { shiftCounts = await monthlyShiftCounts(detail.date); }
+    catch (countError) { return toast(`Could not load monthly shift counts: ${countError.message}`); }
   }
-  const options = (cadets, label) => `<option value="">${label}</option>${cadets.map(cadet => `<option value="${cadet.id}">${escapeRosterText(cadet.full_name)}</option>`).join('')}`;
+  const options = (cadets, label) => `<option value="">${label}</option>${cadets.map(cadet => `<option value="${cadet.id}">${escapeRosterText(cadet.full_name)} (${shiftCounts.get(cadet.id) || 0})</option>`).join('')}`;
   const roster = detail.cadets.map((name, index) => name ? `<div class="detail-row roster-slot"><span>${escapeRosterText(name)}</span></div>` : staff ? `<select class="detail-row roster-slot inline-assignment" data-position="GMC"><option value="">Open GMC position ${index + 1}</option>${options(gmcs, 'Select GMC cadet').replace(/^<option[^>]*>.*?<\/option>/, '')}</select>` : `<div class="detail-row roster-slot open-slot"><span>Open GMC position ${index + 1}</span></div>`).join('');
   const poc = detail.poc ? `<div class="detail-row roster-slot"><span>${escapeRosterText(detail.poc)}</span></div>` : staff ? `<select class="detail-row roster-slot inline-assignment" data-position="POC"><option value="">Open POC lead position</option>${options(pocs, 'Select POC cadet').replace(/^<option[^>]*>.*?<\/option>/, '')}</select>` : `<div class="detail-row roster-slot open-slot"><span>Open POC lead position</span></div>`;
   modal(`<p class="eyebrow">${fmtDate(detail.date)} · ${detail.type}</p><h2>${detail.type} flag detail</h2><p>Report ${detail.report}; ceremony ${detail.time}.</p><div class="form-row"><label>GMC roster (${detail.cadets.filter(Boolean).length}/3)</label>${roster}</div><div class="form-row"><label>POC lead</label>${poc}</div><div class="modal-actions">${staff ? '<button class="secondary" id="detail-edit-times">Edit times</button>' : ''}<button class="primary" id="detail-signup">Select shift</button></div>`);
@@ -268,7 +277,7 @@ async function sendOwnAssignmentEmail(profile, detail) {
   }});
 }
 
-window.signup = detailId => {
+window.signup = async detailId => {
   const profile = window.det607CurrentProfile;
   const detail = data.details.find(item => item.id === detailId);
   if (!profile || !detail) return typeof toast === 'function' && toast('This detail is no longer available. Refresh and try again.');
@@ -276,7 +285,10 @@ window.signup = detailId => {
   const slotLabel = isPoc ? 'POC lead' : 'Cadet';
   if (isPoc && detail.poc) return toast('The POC lead position for this detail has already been claimed.');
   if (!isPoc && !detail.cadets.some(name => !name)) return toast('All three GMC cadet positions for this detail have been claimed.');
-  modal(`<p class="eyebrow">CONFIRM FLAG DETAIL</p><h2>${detail.type} · ${fmtDate(detail.date)}</h2><p>You are claiming the <strong>${slotLabel}</strong> position. Report at ${detail.report}; ceremony at ${detail.time}.</p><p>This is first come, first served. Once confirmed, it becomes part of your schedule.</p><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="confirm-detail-claim">Yes, confirm this shift</button></div>`);
+  let currentMonthCount = 0;
+  try { currentMonthCount = (await monthlyShiftCounts(detail.date)).get(profile.id) || 0; }
+  catch (countError) { return toast(`Could not load your monthly shift count: ${countError.message}`); }
+  modal(`<p class="eyebrow">CONFIRM FLAG DETAIL</p><h2>${detail.type} · ${fmtDate(detail.date)}</h2><p>You are claiming the <strong>${slotLabel}</strong> position. Report at ${detail.report}; ceremony at ${detail.time}.</p><p><strong>Your shifts this month: (${currentMonthCount})</strong></p><p>This is first come, first served. Once confirmed, it becomes part of your schedule.</p><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="confirm-detail-claim">Yes, confirm this shift</button></div>`);
   document.querySelector('#confirm-detail-claim').onclick = async () => {
     const button = document.querySelector('#confirm-detail-claim');
     button.disabled = true; button.textContent = 'Confirming…';
