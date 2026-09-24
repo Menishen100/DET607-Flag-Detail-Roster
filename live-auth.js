@@ -118,6 +118,7 @@ window.detailModal = async id => {
   const detail = data.details.find(item => String(item.id) === String(id));
   if (!detail) return toast('This flag detail is no longer available.');
   const staff = ['ADMIN', 'SUPER_ADMIN'].includes(window.det607CurrentProfile?.admin_level);
+  const superAdmin = window.det607CurrentProfile?.admin_level === 'SUPER_ADMIN';
   let gmcs = [], pocs = [], shiftCounts = new Map();
   if (staff) {
     const { data: cadets, error } = await supabaseClient.from('profiles').select('id,full_name,cadet_type').eq('active', true).order('full_name');
@@ -127,9 +128,13 @@ window.detailModal = async id => {
     try { shiftCounts = await monthlyShiftCounts(detail.date); }
     catch (countError) { return toast(`Could not load monthly shift counts: ${countError.message}`); }
   }
-  const options = (cadets, label) => `<option value="">${label}</option>${cadets.map(cadet => `<option value="${cadet.id}">${escapeRosterText(cadet.full_name)} (${shiftCounts.get(cadet.id) || 0})</option>`).join('')}`;
-  const roster = detail.cadets.map((name, index) => name ? `<div class="detail-row roster-slot"><span>${escapeRosterText(name)}</span></div>` : staff ? `<select class="detail-row roster-slot inline-assignment" data-position="GMC"><option value="">Open GMC position ${index + 1}</option>${options(gmcs, 'Select GMC cadet').replace(/^<option[^>]*>.*?<\/option>/, '')}</select>` : `<div class="detail-row roster-slot open-slot"><span>Open GMC position ${index + 1}</span></div>`).join('');
-  const poc = detail.poc ? `<div class="detail-row roster-slot"><span>${escapeRosterText(detail.poc)}</span></div>` : staff ? `<select class="detail-row roster-slot inline-assignment" data-position="POC"><option value="">Open POC lead position</option>${options(pocs, 'Select POC cadet').replace(/^<option[^>]*>.*?<\/option>/, '')}</select>` : `<div class="detail-row roster-slot open-slot"><span>Open POC lead position</span></div>`;
+  const options = (cadets, label, selectedId = '') => `<option value="">${label}</option>${cadets.map(cadet => `<option value="${cadet.id}" ${cadet.id === selectedId ? 'selected' : ''}>${escapeRosterText(cadet.full_name)} (${shiftCounts.get(cadet.id) || 0})</option>`).join('')}`;
+  const roster = detail.cadets.map((name, index) => {
+    if (!name) return staff ? `<select class="detail-row roster-slot inline-assignment" data-position="GMC"><option value="">Open GMC position ${index + 1}</option>${options(gmcs, 'Select GMC cadet').replace(/^<option[^>]*>.*?<\/option>/, '')}</select>` : `<div class="detail-row roster-slot open-slot"><span>Open GMC position ${index + 1}</span></div>`;
+    if (superAdmin && detail.cadetIds?.[index]) return `<select class="detail-row roster-slot inline-replacement" data-current-cadet-id="${detail.cadetIds[index]}">${options(gmcs, 'Select GMC cadet', detail.cadetIds[index])}</select>`;
+    return `<div class="detail-row roster-slot"><span>${escapeRosterText(name)}</span></div>`;
+  }).join('');
+  const poc = detail.poc ? (superAdmin && detail.pocId ? `<select class="detail-row roster-slot inline-replacement" data-current-cadet-id="${detail.pocId}">${options(pocs, 'Select POC cadet', detail.pocId)}</select>` : `<div class="detail-row roster-slot"><span>${escapeRosterText(detail.poc)}</span></div>`) : staff ? `<select class="detail-row roster-slot inline-assignment" data-position="POC"><option value="">Open POC lead position</option>${options(pocs, 'Select POC cadet').replace(/^<option[^>]*>.*?<\/option>/, '')}</select>` : `<div class="detail-row roster-slot open-slot"><span>Open POC lead position</span></div>`;
   modal(`<p class="eyebrow">${fmtDate(detail.date)} · ${detail.type}</p><h2>${detail.type} flag detail</h2><p>Report ${detail.report}; ceremony ${detail.time}.</p><div class="form-row"><label>GMC roster (${detail.cadets.filter(Boolean).length}/3)</label>${roster}</div><div class="form-row"><label>POC lead</label>${poc}</div><div class="modal-actions">${staff ? '<button class="secondary" id="detail-edit-times">Edit times</button>' : ''}<button class="primary" id="detail-signup">Select shift</button></div>`);
   document.querySelector('#detail-signup').onclick = () => signup(detail.id);
   if (staff) {
@@ -143,6 +148,17 @@ window.detailModal = async id => {
       await supabaseClient.functions.invoke('send-notification', { body: { recipientId: cadetId, eventType: 'ADMIN_ASSIGNMENT', entityType: 'DETAIL', entityId: detail.id, subject: `DET 607 Flag Detail assignment — ${detail.type}`, html: `<p>You were assigned to ${detail.type} on ${fmtDate(detail.date)}. Report at ${detail.report}.</p>` } });
       const { data: { session } } = await supabaseClient.auth.getSession();
       await applySession(session); close(); toast('Cadet assigned to the selected position.');
+    });
+    document.querySelectorAll('.inline-replacement').forEach(select => select.onchange = async event => {
+      const replacementId = event.target.value, currentCadetId = event.target.dataset.currentCadetId;
+      if (!replacementId || replacementId === currentCadetId) return;
+      event.target.disabled = true;
+      const { error: replacementError } = await supabaseClient.rpc('super_admin_replace_detail_assignment', { target_detail_id: detail.id, current_cadet_id: currentCadetId, replacement_cadet_id: replacementId });
+      if (replacementError) { event.target.disabled = false; event.target.value = currentCadetId; return toast(replacementError.message); }
+      await supabaseClient.functions.invoke('send-notification', { body: { recipientId: currentCadetId, eventType: 'ASSIGNMENT_UPDATED', entityType: 'DETAIL', entityId: detail.id, subject: `DET 607 Flag Detail assignment updated — ${detail.type}`, html: `<p>You are no longer assigned to ${detail.type} on ${fmtDate(detail.date)}.</p>` } });
+      await supabaseClient.functions.invoke('send-notification', { body: { recipientId: replacementId, eventType: 'ADMIN_ASSIGNMENT', entityType: 'DETAIL', entityId: detail.id, subject: `DET 607 Flag Detail assignment — ${detail.type}`, html: `<p>You were assigned to ${detail.type} on ${fmtDate(detail.date)}. Report at ${detail.report}.</p>` } });
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      await applySession(session); close(); toast('Assigned cadet replaced.');
     });
   }
 };
@@ -189,10 +205,13 @@ async function loadLiveRoster(profile, email) {
   if (detailError) throw detailError;
   const mapped = (details || []).map(detail => {
     const assignedCadets = detail.cadet_names || [];
+    const assignedCadetIds = detail.cadet_ids || [];
     return {
     id: detail.detail_id, date: detail.detail_date, type: detailLabel(detail.detail_type),
     report: String(detail.report_time).slice(0, 5), time: String(detail.ceremony_time).slice(0, 5),
-    cadets: [...assignedCadets, ...Array(Math.max(0, 3 - assignedCadets.length)).fill('')], poc: detail.poc_name || '',
+    cadets: [...assignedCadets, ...Array(Math.max(0, 3 - assignedCadets.length)).fill('')],
+    cadetIds: [...assignedCadetIds, ...Array(Math.max(0, 3 - assignedCadetIds.length)).fill('')],
+    poc: detail.poc_name || '', pocId: detail.poc_id || '',
     status: detail.blocked ? 'blocked' : 'open', blocked: detail.blocked, blockedReason: detail.blocked_reason
   }});
   data = { details: mapped, blocked: Object.fromEntries(mapped.filter(d => d.blocked).map(d => [d.date, d.blockedReason || 'Unavailable'])), requests: [], attendance: [], cases: [] };
