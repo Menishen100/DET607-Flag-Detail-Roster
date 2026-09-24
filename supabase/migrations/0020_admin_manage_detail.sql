@@ -1,6 +1,6 @@
 create or replace function public.admin_assign_detail(target_detail_id uuid, target_cadet_id uuid)
 returns uuid language plpgsql security definer set search_path = public as $$
-declare target_profile public.profiles; target_detail public.details; assigned uuid; position_kind public.assignment_position;
+declare target_profile public.profiles; target_detail public.details; assigned uuid; position_kind text;
 begin
   if not public.is_admin() then raise exception 'Administrator access is required'; end if;
   select * into target_profile from public.profiles where id = target_cadet_id and active;
