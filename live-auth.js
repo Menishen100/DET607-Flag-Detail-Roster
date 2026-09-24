@@ -43,6 +43,51 @@ function authStatus(message, type = '') {
 }
 function detailLabel(type) { return type === 'REVEILLE' ? 'Reveille' : 'Retreat'; }
 
+function escapeRosterText(value) {
+  return String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+}
+
+// Replace the demo calendar renderer with a live monthly roster view. Staff can
+// see each confirmed cadet and every remaining GMC/POC position at a glance.
+function renderCalendar() {
+  const first = new Date(year, month, 1);
+  const last = new Date(year, month + 1, 0);
+  const cells = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map(day => `<div class="day-head">${day}</div>`);
+  const selectedMonth = `${year}-${String(month + 1).padStart(2, '0')}`;
+  const monthDetails = data.details.filter(detail => detail.date.startsWith(selectedMonth));
+
+  for (let day = 1; day <= last.getDate(); day += 1) {
+    const date = new Date(year, month, day);
+    if (date.getDay() === 0 || date.getDay() === 6) continue;
+    const iso = `${selectedMonth}-${String(day).padStart(2, '0')}`;
+    const details = monthDetails.filter(detail => detail.date === iso);
+    const blocked = data.blocked[iso];
+    const detailCards = details.map(detail => {
+      const remainingGmc = detail.cadets.filter(name => !name).length;
+      const pocStatus = detail.poc ? 'POC assigned' : 'POC open';
+      return `<div class="mini-detail ${detail.status === 'ready' ? 'ready-card' : ''}" onclick="detailModal('${detail.id}')"><strong>${escapeRosterText(detail.type)} · ${escapeRosterText(detail.time)}</strong><span>${remainingGmc} GMC open · ${pocStatus}</span></div>`;
+    }).join('');
+    cells.push(`<div class="cal-day ${blocked ? 'blocked-day' : ''}"><div class="cal-date">${day}</div>${blocked ? `<p class="blocked-note">${escapeRosterText(blocked)}</p>` : detailCards || '<p class="blocked-note">No detail</p>'}</div>`);
+  }
+
+  document.querySelector('#calendar').innerHTML = cells.join('');
+  document.querySelector('#month-title').textContent = first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  const summary = document.querySelector('#monthly-roster-summary');
+  if (!summary) return;
+  if (!monthDetails.length) {
+    summary.innerHTML = '<p class="muted">No published schedule exists for this month. Select a month and use Publish schedule to create the weekday details.</p>';
+    return;
+  }
+  summary.innerHTML = monthDetails.map(detail => {
+    const namedCadets = detail.cadets.filter(Boolean);
+    const openGmc = detail.cadets.filter(name => !name).length;
+    const cadetText = namedCadets.length ? namedCadets.map(escapeRosterText).join(', ') : 'No GMC cadets assigned';
+    const pocText = detail.poc ? escapeRosterText(detail.poc) : 'Open POC lead position';
+    return `<article class="monthly-roster-card ${detail.blocked ? 'blocked-roster-card' : ''}"><div><p class="eyebrow">${escapeRosterText(fmtDate(detail.date))} · ${escapeRosterText(detail.type)}</p><h3>Report ${escapeRosterText(detail.report)} · Ceremony ${escapeRosterText(detail.time)}</h3><p><strong>GMC (${namedCadets.length}/3):</strong> ${cadetText}</p><p><strong>POC lead:</strong> ${pocText}</p></div><div class="roster-slot-status">${detail.blocked ? '<span class="tag danger">Blocked</span>' : `<span class="tag ${openGmc || !detail.poc ? 'warn' : ''}">${openGmc} GMC open · ${detail.poc ? 'POC filled' : '1 POC open'}</span>`}<button class="secondary" onclick="detailModal('${detail.id}')">View roster</button></div></article>`;
+  }).join('');
+}
+
 async function loadLiveRoster(profile, email) {
   const { data: details, error: detailError } = await supabaseClient.rpc('get_schedule_roster');
   if (detailError) throw detailError;

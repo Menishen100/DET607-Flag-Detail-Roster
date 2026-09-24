@@ -29,6 +29,62 @@
   border: 0;
 }
 
+.monthly-roster-panel {
+  margin-top: 24px;
+  padding: 22px;
+  background: #fff;
+  border: 1px solid #e6edf3;
+  border-radius: 8px;
+}
+
+.monthly-roster-summary {
+  display: grid;
+  gap: 10px;
+}
+
+.monthly-roster-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+.monthly-roster-card h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.monthly-roster-card p:not(.eyebrow) {
+  margin: 4px 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.roster-slot-status {
+  display: flex;
+  min-width: 150px;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 9px;
+}
+
+.blocked-roster-card {
+  background: #f5f6f7;
+}
+
+@media (max-width: 720px) {
+  .monthly-roster-card {
+    flex-direction: column;
+  }
+
+  .roster-slot-status {
+    align-items: flex-start;
+  }
+}
+
 .side-bottom{position:relative}.user-card{width:100%;border:0;border-top:1px solid rgba(255,255,255,.13);padding:18px 9px;background:transparent;color:#eff6fc;display:flex;gap:10px;align-items:center;text-align:left;font:12px Manrope;cursor:pointer}.user-card:hover{background:rgba(255,255,255,.08)}.user-card>span:nth-child(2){min-width:0}.user-card strong{display:block}.profile-chevron{margin-left:auto;color:#a8c1d8;font-size:16px}.profile-popover{position:absolute;z-index:5;bottom:60px;left:7px;right:7px;padding:13px;border:1px solid #315470;border-radius:7px;background:#fff;color:var(--navy);box-shadow:var(--shadow)}.profile-popover strong,.profile-popover small,.profile-popover span{display:block}.profile-popover small{margin:4px 0;color:var(--muted);font-size:10px;overflow-wrap:anywhere}.profile-popover span{font:700 9px 'DM Mono';color:var(--blue);letter-spacing:.06em}.profile-popover button{width:100%;margin-top:12px;padding:8px;border:1px solid #c9423f;border-radius:5px;background:#fff;color:#b13834;font:700 11px Manrope;cursor:pointer}
 
 .roster-filters{display:flex;gap:10px;margin-bottom:18px}.roster-filters input,.roster-filters select{border:1px solid var(--line);border-radius:6px;padding:10px;background:#fff;font:12px Manrope}.roster-filters input{min-width:260px}.roster-table{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}.roster-row{display:grid;grid-template-columns:1.2fr .7fr .7fr 1.5fr .65fr 34px;gap:12px;align-items:center;padding:13px 16px;border-bottom:1px solid var(--line);font-size:12px}.roster-row:last-child{border-bottom:0}.roster-head{background:#f1f5f8;color:var(--muted);font:700 10px 'DM Mono';letter-spacing:.04em;text-transform:uppercase}.roster-row a{color:var(--blue);overflow-wrap:anywhere}.roster-actions{width:30px;height:30px;padding:0;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--navy);font:700 18px/1 Manrope;cursor:pointer}.roster-actions:hover{background:#edf4f8;border-color:#9cc5e4}@media(max-width:720px){.roster-filters{display:grid;grid-template-columns:1fr}.roster-filters input{min-width:0}.roster-row{grid-template-columns:1fr 1fr}.roster-head{display:none}.roster-row>span:nth-child(4),.roster-row>a{grid-column:1/-1}}
