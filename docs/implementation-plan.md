@@ -6,7 +6,7 @@
 | --- | --- |
 | Details | Reveille and Retreat are generated only Monday–Friday. Weekends are excluded by default. |
 | Staffing | Every detail requires three cadets plus exactly one POC lead. A detail is not ready until all four positions are filled. |
-| Times | Default Reveille ceremony/report times are 08:30/08:25. Default Retreat times are 16:30/16:25. An administrator can change a month default or an individual date. |
+| Times | Default Reveille ceremony/report times are 08:30/08:25. Default Retreat times are 15:30/15:25. An administrator can change a month default or an individual date. |
 | Eligibility | GMC cadets may occupy cadet positions. POC cadets may occupy a cadet position or the POC-lead position. Only a POC can lead. |
 | Conflicts | Assignment, coverage acceptance, and swap acceptance are rejected when the candidate has another overlapping active detail. |
 | Publication | A detail begins as draft/open, is published to invite sign-up, and is locked once the schedule is finalized. |
