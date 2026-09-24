@@ -107,6 +107,44 @@ function renderOpen() {
   }).join('');
 }
 
+window.detailModal = id => {
+  const detail = data.details.find(item => String(item.id) === String(id));
+  if (!detail) return toast('This flag detail is no longer available.');
+  const staff = ['ADMIN', 'SUPER_ADMIN'].includes(window.det607CurrentProfile?.admin_level);
+  const roster = detail.cadets.map((name, index) => `<div class="detail-row"><span>${name || `Open GMC position ${index + 1}`}</span></div>`).join('');
+  modal(`<p class="eyebrow">${fmtDate(detail.date)} · ${detail.type}</p><h2>${detail.type} flag detail</h2><p>Report ${detail.report}; ceremony ${detail.time}.</p><div class="form-row"><label>GMC roster (${detail.cadets.filter(Boolean).length}/3)</label>${roster}</div><div class="form-row"><label>POC lead</label><div class="detail-row"><span>${detail.poc || 'Open POC lead position'}</span></div></div><div class="modal-actions">${staff ? '<button class="secondary" id="detail-edit-times">Edit times</button><button class="secondary" id="detail-assign">Assign cadet</button>' : ''}<button class="primary" id="detail-signup">Select shift</button></div>`);
+  document.querySelector('#detail-signup').onclick = () => signup(detail.id);
+  if (staff) {
+    document.querySelector('#detail-assign').onclick = () => openAdminPlacement(detail);
+    document.querySelector('#detail-edit-times').onclick = () => openDetailTimeEditor(detail);
+  }
+};
+
+async function openAdminPlacement(detail) {
+  const { data: cadets, error } = await supabaseClient.from('profiles').select('id,full_name,cadet_type').eq('active', true).order('full_name');
+  if (error) return toast(error.message);
+  modal(`<p class="eyebrow">STAFF ASSIGNMENT</p><h2>Assign cadet</h2><p>GMC cadets fill GMC slots; POCs fill the POC lead slot.</p><div class="form-row"><label>Cadet</label><select id="staff-cadet">${cadets.map(c => `<option value="${c.id}">${escapeRosterText(c.full_name)} (${c.cadet_type})</option>`).join('')}</select></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="save-staff-assignment">Assign</button></div>`);
+  document.querySelector('#save-staff-assignment').onclick = async () => {
+    const cadetId = document.querySelector('#staff-cadet').value;
+    const cadet = cadets.find(item => item.id === cadetId);
+    const { error: assignError } = await supabaseClient.rpc('admin_assign_detail', { target_detail_id: detail.id, target_cadet_id: cadetId });
+    if (assignError) return toast(assignError.message);
+    await supabaseClient.functions.invoke('send-notification', { body: { recipientId: cadetId, eventType: 'ADMIN_ASSIGNMENT', entityType: 'DETAIL', entityId: detail.id, subject: `DET 607 Flag Detail assignment — ${detail.type}`, html: `<p>You were assigned to ${detail.type} on ${fmtDate(detail.date)}. Report at ${detail.report}.</p>` } });
+    close(); const { data: { session } } = await supabaseClient.auth.getSession(); await applySession(session); toast(`${cadet.full_name} assigned.`);
+  };
+}
+
+function openDetailTimeEditor(detail) {
+  modal(`<p class="eyebrow">DETAIL TIME UPDATE</p><h2>Update ${detail.type} times</h2><div class="form-row"><label>Report time</label><input id="staff-report-time" type="time" value="${detail.report}"></div><div class="form-row"><label>Ceremony time</label><input id="staff-ceremony-time" type="time" value="${detail.time}"></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="save-detail-times">Save changes</button></div>`);
+  document.querySelector('#save-detail-times').onclick = async () => {
+    const report = document.querySelector('#staff-report-time').value, ceremony = document.querySelector('#staff-ceremony-time').value;
+    const { data: recipients, error } = await supabaseClient.rpc('admin_update_detail_times', { target_detail_id: detail.id, new_report_time: report, new_ceremony_time: ceremony });
+    if (error) return toast(error.message);
+    for (const recipientId of recipients || []) await supabaseClient.functions.invoke('send-notification', { body: { recipientId, eventType: 'DETAIL_TIME_UPDATED', entityType: 'DETAIL', entityId: detail.id, subject: `DET 607 Flag Detail time updated — ${detail.type}`, html: `<p>Your ${detail.type} on ${fmtDate(detail.date)} now reports at ${report}; ceremony is ${ceremony}.</p>` } });
+    close(); const { data: { session } } = await supabaseClient.auth.getSession(); await applySession(session); toast('Detail time updated.');
+  };
+}
+
 async function loadLiveRoster(profile, email) {
   const { data: details, error: detailError } = await supabaseClient.rpc('get_live_schedule_roster');
   if (detailError) throw detailError;
