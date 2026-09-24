@@ -111,26 +111,30 @@ window.detailModal = id => {
   const detail = data.details.find(item => String(item.id) === String(id));
   if (!detail) return toast('This flag detail is no longer available.');
   const staff = ['ADMIN', 'SUPER_ADMIN'].includes(window.det607CurrentProfile?.admin_level);
-  const roster = detail.cadets.map((name, index) => `<div class="detail-row"><span>${name || `Open GMC position ${index + 1}`}</span></div>`).join('');
-  modal(`<p class="eyebrow">${fmtDate(detail.date)} · ${detail.type}</p><h2>${detail.type} flag detail</h2><p>Report ${detail.report}; ceremony ${detail.time}.</p><div class="form-row"><label>GMC roster (${detail.cadets.filter(Boolean).length}/3)</label>${roster}</div><div class="form-row"><label>POC lead</label><div class="detail-row"><span>${detail.poc || 'Open POC lead position'}</span></div></div><div class="modal-actions">${staff ? '<button class="secondary" id="detail-edit-times">Edit times</button><button class="secondary" id="detail-assign">Assign cadet</button>' : ''}<button class="primary" id="detail-signup">Select shift</button></div>`);
+  const roster = detail.cadets.map((name, index) => `<button class="detail-row roster-slot ${name ? '' : 'open-slot'}" ${name || !staff ? 'disabled' : ''} data-position="GMC"><span>${name || `Open GMC position ${index + 1}`}</span></button>`).join('');
+  const poc = `<button class="detail-row roster-slot ${detail.poc ? '' : 'open-slot'}" ${detail.poc || !staff ? 'disabled' : ''} data-position="POC"><span>${detail.poc || 'Open POC lead position'}</span></button>`;
+  modal(`<p class="eyebrow">${fmtDate(detail.date)} · ${detail.type}</p><h2>${detail.type} flag detail</h2><p>Report ${detail.report}; ceremony ${detail.time}.</p><div class="form-row"><label>GMC roster (${detail.cadets.filter(Boolean).length}/3)</label>${roster}</div><div class="form-row"><label>POC lead</label>${poc}</div><div class="modal-actions">${staff ? '<button class="secondary" id="detail-edit-times">Edit times</button><button class="secondary" id="detail-assign">Assign cadet</button>' : ''}<button class="primary" id="detail-signup">Select shift</button></div>`);
   document.querySelector('#detail-signup').onclick = () => signup(detail.id);
   if (staff) {
     document.querySelector('#detail-assign').onclick = () => openAdminPlacement(detail);
     document.querySelector('#detail-edit-times').onclick = () => openDetailTimeEditor(detail);
+    document.querySelectorAll('.open-slot').forEach(slot => slot.onclick = () => openAdminPlacement(detail, slot.dataset.position));
   }
 };
 
-async function openAdminPlacement(detail) {
+async function openAdminPlacement(detail, requestedPosition = null) {
   const { data: cadets, error } = await supabaseClient.from('profiles').select('id,full_name,cadet_type').eq('active', true).order('full_name');
   if (error) return toast(error.message);
   const openGmc = detail.cadets.filter(name => !name).length;
   const openPoc = !detail.poc;
   const gmcs = (cadets || []).filter(cadet => cadet.cadet_type === 'GMC');
   const pocs = (cadets || []).filter(cadet => cadet.cadet_type === 'POC');
-  const choices = [openGmc ? '<option value="GMC">GMC position</option>' : '', openPoc ? '<option value="POC">POC lead position</option>' : ''].join('');
+  const choices = requestedPosition ? `<option value="${requestedPosition}">${requestedPosition === 'POC' ? 'POC lead position' : 'GMC position'}</option>` : [openGmc ? '<option value="GMC">GMC position</option>' : '', openPoc ? '<option value="POC">POC lead position</option>' : ''].join('');
   if (!choices) return toast('This flag detail is fully staffed.');
   const cadetOptions = type => (type === 'POC' ? pocs : gmcs).map(cadet => `<option value="${cadet.id}">${escapeRosterText(cadet.full_name)}</option>`).join('') || '<option value="">No eligible cadets available</option>';
-  modal(`<p class="eyebrow">STAFF ASSIGNMENT</p><h2>Assign cadet</h2><p>Choose the open position first. The cadet list is limited to the correct classification.</p><div class="form-row"><label>Open position</label><select id="staff-position">${choices}</select></div><div class="form-row"><label>Eligible cadet</label><select id="staff-cadet">${cadetOptions(openGmc ? 'GMC' : 'POC')}</select></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="save-staff-assignment">Assign</button></div>`);
+  const initialPosition = requestedPosition || (openGmc ? 'GMC' : 'POC');
+  modal(`<p class="eyebrow">STAFF ASSIGNMENT</p><h2>Assign cadet</h2><p>Only eligible cadets are listed for this position.</p><div class="form-row"><label>Open position</label><select id="staff-position" ${requestedPosition ? 'disabled' : ''}>${choices}</select></div><div class="form-row"><label>Eligible cadet</label><select id="staff-cadet">${cadetOptions(initialPosition)}</select></div><div class="modal-actions"><button class="secondary" id="cancel-staff-assignment">Cancel</button><button class="primary" id="save-staff-assignment">Assign</button></div>`);
+  document.querySelector('#cancel-staff-assignment').onclick = close;
   document.querySelector('#staff-position').onchange = event => { document.querySelector('#staff-cadet').innerHTML = cadetOptions(event.target.value); };
   document.querySelector('#save-staff-assignment').onclick = async () => {
     const cadetId = document.querySelector('#staff-cadet').value;
@@ -144,7 +148,8 @@ async function openAdminPlacement(detail) {
 }
 
 function openDetailTimeEditor(detail) {
-  modal(`<p class="eyebrow">DETAIL TIME UPDATE</p><h2>Update ${detail.type} times</h2><div class="form-row"><label>Report time</label><input id="staff-report-time" type="time" value="${detail.report}"></div><div class="form-row"><label>Ceremony time</label><input id="staff-ceremony-time" type="time" value="${detail.time}"></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="save-detail-times">Save changes</button></div>`);
+  modal(`<p class="eyebrow">DETAIL TIME UPDATE</p><h2>Update ${detail.type} times</h2><div class="form-row"><label>Report time</label><input id="staff-report-time" type="time" value="${detail.report}"></div><div class="form-row"><label>Ceremony time</label><input id="staff-ceremony-time" type="time" value="${detail.time}"></div><div class="modal-actions"><button class="secondary" id="cancel-detail-times">Cancel</button><button class="primary" id="save-detail-times">Save changes</button></div>`);
+  document.querySelector('#cancel-detail-times').onclick = close;
   document.querySelector('#save-detail-times').onclick = async () => {
     const report = document.querySelector('#staff-report-time').value, ceremony = document.querySelector('#staff-ceremony-time').value;
     const { data: recipients, error } = await supabaseClient.rpc('admin_update_detail_times', { target_detail_id: detail.id, new_report_time: report, new_ceremony_time: ceremony });
