@@ -15,7 +15,7 @@ begin
       coalesce(array_agg(p.full_name order by p.full_name) filter (where a.position = 'CADET'), array[]::text[]) as cadet_names,
       coalesce(array_agg(a.cadet_id order by p.full_name) filter (where a.position = 'CADET'), array[]::uuid[]) as cadet_ids,
       max(p.full_name) filter (where a.position = 'POC_LEAD') as poc_name,
-      max(a.cadet_id) filter (where a.position = 'POC_LEAD') as poc_id
+      (array_agg(a.cadet_id order by a.cadet_id) filter (where a.position = 'POC_LEAD'))[1] as poc_id
     from public.details d
     join public.schedules s on s.id = d.schedule_id
     left join public.assignments a on a.detail_id = d.id and a.removed_at is null

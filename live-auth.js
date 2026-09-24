@@ -203,7 +203,10 @@ function openDetailTimeEditor(detail) {
 async function loadLiveRoster(profile, email) {
   const { data: details, error: detailError } = await supabaseClient.rpc('get_live_schedule_roster');
   if (detailError) throw detailError;
-  const mapped = (details || []).map(detail => {
+  const rosterRows = Array.isArray(details) && details.length === 1 && Array.isArray(details[0]?.get_live_schedule_roster)
+    ? details[0].get_live_schedule_roster
+    : (Array.isArray(details?.get_live_schedule_roster) ? details.get_live_schedule_roster : (details || []));
+  const mapped = rosterRows.map(detail => {
     const assignedCadets = detail.cadet_names || [];
     const assignedCadetIds = detail.cadet_ids || [];
     return {
