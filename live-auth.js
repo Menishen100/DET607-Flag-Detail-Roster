@@ -135,31 +135,45 @@ window.detailModal = async id => {
     return `<div class="detail-row roster-slot"><span>${escapeRosterText(name)}</span></div>`;
   }).join('');
   const poc = detail.poc ? (superAdmin && detail.pocId ? `<select class="detail-row roster-slot inline-replacement" data-current-cadet-id="${detail.pocId}">${options(pocs, 'Select POC cadet', detail.pocId)}</select>` : `<div class="detail-row roster-slot"><span>${escapeRosterText(detail.poc)}</span></div>`) : staff ? `<select class="detail-row roster-slot inline-assignment" data-position="POC"><option value="">Open POC lead position</option>${options(pocs, 'Select POC cadet').replace(/^<option[^>]*>.*?<\/option>/, '')}</select>` : `<div class="detail-row roster-slot open-slot"><span>Open POC lead position</span></div>`;
-  modal(`<p class="eyebrow">${fmtDate(detail.date)} · ${detail.type}</p><h2>${detail.type} flag detail</h2><p>Report ${detail.report}; ceremony ${detail.time}.</p><div class="form-row"><label>GMC roster (${detail.cadets.filter(Boolean).length}/3)</label>${roster}</div><div class="form-row"><label>POC lead</label>${poc}</div><div class="modal-actions">${staff ? '<button class="secondary" id="detail-edit-times">Edit times</button>' : ''}<button class="primary" id="detail-signup">Select shift</button></div>`);
-  document.querySelector('#detail-signup').onclick = () => signup(detail.id);
+  modal(`<p class="eyebrow">${fmtDate(detail.date)} · ${detail.type}</p><h2>${detail.type} flag detail</h2><p>Report ${detail.report}; ceremony ${detail.time}.</p><div class="form-row"><label>GMC roster (${detail.cadets.filter(Boolean).length}/3)</label>${roster}</div><div class="form-row"><label>POC lead</label>${poc}</div><div class="modal-actions">${staff ? '<button class="secondary" id="detail-edit-times">Edit times</button><button class="primary" id="save-staff-assignments" disabled>Assign selected</button>' : '<button class="primary" id="detail-signup">Select shift</button>'}</div>`);
+  if (!staff) document.querySelector('#detail-signup').onclick = () => signup(detail.id);
   if (staff) {
     document.querySelector('#detail-edit-times').onclick = () => openDetailTimeEditor(detail);
-    document.querySelectorAll('.inline-assignment').forEach(select => select.onchange = async event => {
-      const cadetId = event.target.value;
-      if (!cadetId) return;
-      event.target.disabled = true;
-      const { error: assignError } = await supabaseClient.rpc('admin_assign_detail', { target_detail_id: detail.id, target_cadet_id: cadetId });
-      if (assignError) { event.target.disabled = false; event.target.value = ''; return toast(assignError.message); }
-      await supabaseClient.functions.invoke('send-notification', { body: { recipientId: cadetId, eventType: 'ADMIN_ASSIGNMENT', entityType: 'DETAIL', entityId: detail.id, subject: `DET 607 Flag Detail assignment — ${detail.type}`, html: `<p>You were assigned to ${detail.type} on ${fmtDate(detail.date)}. Report at ${detail.report}.</p>` } });
+    const saveButton = document.querySelector('#save-staff-assignments');
+    const refreshSaveButton = () => {
+      const hasNewAssignment = [...document.querySelectorAll('.inline-assignment')].some(select => select.value);
+      const hasReplacement = [...document.querySelectorAll('.inline-replacement')].some(select => select.value && select.value !== select.dataset.currentCadetId);
+      saveButton.disabled = !(hasNewAssignment || hasReplacement);
+    };
+    document.querySelectorAll('.inline-assignment, .inline-replacement').forEach(select => select.onchange = refreshSaveButton);
+    saveButton.onclick = async () => {
+      const newAssignments = [...document.querySelectorAll('.inline-assignment')].map(select => select.value).filter(Boolean);
+      const replacements = [...document.querySelectorAll('.inline-replacement')].map(select => ({ currentCadetId: select.dataset.currentCadetId, replacementId: select.value })).filter(item => item.replacementId && item.replacementId !== item.currentCadetId);
+      if (!newAssignments.length && !replacements.length) return;
+      saveButton.disabled = true; saveButton.textContent = 'Assigning…';
+      let completed = 0;
+      try {
+        for (const cadetId of newAssignments) {
+          const { error: assignError } = await supabaseClient.rpc('admin_assign_detail', { target_detail_id: detail.id, target_cadet_id: cadetId });
+          if (assignError) throw assignError;
+          completed += 1;
+          await supabaseClient.functions.invoke('send-notification', { body: { recipientId: cadetId, eventType: 'ADMIN_ASSIGNMENT', entityType: 'DETAIL', entityId: detail.id, subject: `DET 607 Flag Detail assignment — ${detail.type}`, html: `<p>You were assigned to ${detail.type} on ${fmtDate(detail.date)}. Report at ${detail.report}.</p>` } });
+        }
+        for (const { currentCadetId, replacementId } of replacements) {
+          const { error: replacementError } = await supabaseClient.rpc('super_admin_replace_detail_assignment', { target_detail_id: detail.id, current_cadet_id: currentCadetId, replacement_cadet_id: replacementId });
+          if (replacementError) throw replacementError;
+          completed += 1;
+          await supabaseClient.functions.invoke('send-notification', { body: { recipientId: currentCadetId, eventType: 'ASSIGNMENT_UPDATED', entityType: 'DETAIL', entityId: detail.id, subject: `DET 607 Flag Detail assignment updated — ${detail.type}`, html: `<p>You are no longer assigned to ${detail.type} on ${fmtDate(detail.date)}.</p>` } });
+          await supabaseClient.functions.invoke('send-notification', { body: { recipientId: replacementId, eventType: 'ADMIN_ASSIGNMENT', entityType: 'DETAIL', entityId: detail.id, subject: `DET 607 Flag Detail assignment — ${detail.type}`, html: `<p>You were assigned to ${detail.type} on ${fmtDate(detail.date)}. Report at ${detail.report}.</p>` } });
+        }
+      } catch (saveError) {
+        toast(`${completed ? `${completed} assignment(s) saved. ` : ''}${saveError.message}`);
+      }
       const { data: { session } } = await supabaseClient.auth.getSession();
-      await applySession(session); close(); toast('Cadet assigned to the selected position.');
-    });
-    document.querySelectorAll('.inline-replacement').forEach(select => select.onchange = async event => {
-      const replacementId = event.target.value, currentCadetId = event.target.dataset.currentCadetId;
-      if (!replacementId || replacementId === currentCadetId) return;
-      event.target.disabled = true;
-      const { error: replacementError } = await supabaseClient.rpc('super_admin_replace_detail_assignment', { target_detail_id: detail.id, current_cadet_id: currentCadetId, replacement_cadet_id: replacementId });
-      if (replacementError) { event.target.disabled = false; event.target.value = currentCadetId; return toast(replacementError.message); }
-      await supabaseClient.functions.invoke('send-notification', { body: { recipientId: currentCadetId, eventType: 'ASSIGNMENT_UPDATED', entityType: 'DETAIL', entityId: detail.id, subject: `DET 607 Flag Detail assignment updated — ${detail.type}`, html: `<p>You are no longer assigned to ${detail.type} on ${fmtDate(detail.date)}.</p>` } });
-      await supabaseClient.functions.invoke('send-notification', { body: { recipientId: replacementId, eventType: 'ADMIN_ASSIGNMENT', entityType: 'DETAIL', entityId: detail.id, subject: `DET 607 Flag Detail assignment — ${detail.type}`, html: `<p>You were assigned to ${detail.type} on ${fmtDate(detail.date)}. Report at ${detail.report}.</p>` } });
-      const { data: { session } } = await supabaseClient.auth.getSession();
-      await applySession(session); close(); toast('Assigned cadet replaced.');
-    });
+      await applySession(session);
+      await detailModal(detail.id);
+      if (completed) toast(`${completed} roster assignment${completed === 1 ? '' : 's'} saved.`);
+    };
   }
 };
 
