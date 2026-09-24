@@ -107,18 +107,33 @@ function renderOpen() {
   }).join('');
 }
 
-window.detailModal = id => {
+window.detailModal = async id => {
   const detail = data.details.find(item => String(item.id) === String(id));
   if (!detail) return toast('This flag detail is no longer available.');
   const staff = ['ADMIN', 'SUPER_ADMIN'].includes(window.det607CurrentProfile?.admin_level);
-  const roster = detail.cadets.map((name, index) => `<button class="detail-row roster-slot ${name ? '' : 'open-slot'}" ${name || !staff ? 'disabled' : ''} data-position="GMC"><span>${name || `Open GMC position ${index + 1}`}</span></button>`).join('');
-  const poc = `<button class="detail-row roster-slot ${detail.poc ? '' : 'open-slot'}" ${detail.poc || !staff ? 'disabled' : ''} data-position="POC"><span>${detail.poc || 'Open POC lead position'}</span></button>`;
-  modal(`<p class="eyebrow">${fmtDate(detail.date)} · ${detail.type}</p><h2>${detail.type} flag detail</h2><p>Report ${detail.report}; ceremony ${detail.time}.</p><div class="form-row"><label>GMC roster (${detail.cadets.filter(Boolean).length}/3)</label>${roster}</div><div class="form-row"><label>POC lead</label>${poc}</div><div class="modal-actions">${staff ? '<button class="secondary" id="detail-edit-times">Edit times</button><button class="secondary" id="detail-assign">Assign cadet</button>' : ''}<button class="primary" id="detail-signup">Select shift</button></div>`);
+  let gmcs = [], pocs = [];
+  if (staff) {
+    const { data: cadets, error } = await supabaseClient.from('profiles').select('id,full_name,cadet_type').eq('active', true).order('full_name');
+    if (error) return toast(error.message);
+    gmcs = (cadets || []).filter(cadet => cadet.cadet_type === 'GMC');
+    pocs = (cadets || []).filter(cadet => cadet.cadet_type === 'POC');
+  }
+  const options = (cadets, label) => `<option value="">${label}</option>${cadets.map(cadet => `<option value="${cadet.id}">${escapeRosterText(cadet.full_name)}</option>`).join('')}`;
+  const roster = detail.cadets.map((name, index) => name ? `<div class="detail-row roster-slot"><span>${escapeRosterText(name)}</span></div>` : staff ? `<select class="detail-row roster-slot inline-assignment" data-position="GMC"><option value="">Open GMC position ${index + 1}</option>${options(gmcs, 'Select GMC cadet').replace(/^<option[^>]*>.*?<\/option>/, '')}</select>` : `<div class="detail-row roster-slot open-slot"><span>Open GMC position ${index + 1}</span></div>`).join('');
+  const poc = detail.poc ? `<div class="detail-row roster-slot"><span>${escapeRosterText(detail.poc)}</span></div>` : staff ? `<select class="detail-row roster-slot inline-assignment" data-position="POC"><option value="">Open POC lead position</option>${options(pocs, 'Select POC cadet').replace(/^<option[^>]*>.*?<\/option>/, '')}</select>` : `<div class="detail-row roster-slot open-slot"><span>Open POC lead position</span></div>`;
+  modal(`<p class="eyebrow">${fmtDate(detail.date)} · ${detail.type}</p><h2>${detail.type} flag detail</h2><p>Report ${detail.report}; ceremony ${detail.time}.</p><div class="form-row"><label>GMC roster (${detail.cadets.filter(Boolean).length}/3)</label>${roster}</div><div class="form-row"><label>POC lead</label>${poc}</div><div class="modal-actions">${staff ? '<button class="secondary" id="detail-edit-times">Edit times</button>' : ''}<button class="primary" id="detail-signup">Select shift</button></div>`);
   document.querySelector('#detail-signup').onclick = () => signup(detail.id);
   if (staff) {
-    document.querySelector('#detail-assign').onclick = () => openAdminPlacement(detail);
     document.querySelector('#detail-edit-times').onclick = () => openDetailTimeEditor(detail);
-    document.querySelectorAll('.open-slot').forEach(slot => slot.onclick = () => openAdminPlacement(detail, slot.dataset.position));
+    document.querySelectorAll('.inline-assignment').forEach(select => select.onchange = async event => {
+      const cadetId = event.target.value;
+      if (!cadetId) return;
+      event.target.disabled = true;
+      const { error: assignError } = await supabaseClient.rpc('admin_assign_detail', { target_detail_id: detail.id, target_cadet_id: cadetId });
+      if (assignError) { event.target.disabled = false; event.target.value = ''; return toast(assignError.message); }
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      await applySession(session); close(); toast('Cadet assigned to the selected position.');
+    });
   }
 };
 
