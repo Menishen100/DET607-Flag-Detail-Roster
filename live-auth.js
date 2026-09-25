@@ -47,6 +47,14 @@ function authStatus(message, type = '') {
 }
 function detailLabel(type) { return type === 'REVEILLE' ? 'Reveille' : 'Retreat'; }
 
+// Dates are stored as YYYY-MM-DD. Noon avoids a timezone shift when a cadet
+// opens the schedule from a different device or time zone.
+function weekdayDetailDate(date) {
+  return new Date(`${date}T12:00`).toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric'
+  });
+}
+
 function escapeRosterText(value) {
   return String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 }
@@ -138,7 +146,11 @@ function renderOpen() {
     const openGmc = detail.cadets.filter(name => !name).length;
     const openPoc = detail.poc ? 0 : 1;
     const typeClass = detail.type === 'Reveille' ? 'reveille-open' : 'retreat-open';
-    return `<article class="detail-card ${typeClass}"><div class="date-pill">${escapeRosterText(fmtDate(detail.date).split(' ')[1])}<small>${escapeRosterText(fmtDate(detail.date).split(' ')[0])} · ${escapeRosterText(detail.type)}</small></div><div class="card-main"><h3>Report ${escapeRosterText(detail.report)} · Ceremony ${escapeRosterText(detail.time)}</h3><p>${openGmc ? `${openGmc} GMC ${openGmc === 1 ? 'slot' : 'slots'} open` : 'GMC slots filled'}${openPoc ? ' · 1 POC lead slot open' : ' · POC lead filled'}</p><div class="tags">${openGmc ? `<span class="tag warn">${openGmc} GMC open</span>` : ''}${openPoc ? '<span class="tag danger">1 POC open</span>' : ''}</div></div><div class="card-actions"><button class="secondary" onclick="detailModal('${detail.id}')">View roster</button><button class="primary" onclick="signup('${detail.id}')">Select shift</button></div></article>`;
+    const date = new Date(`${detail.date}T12:00`);
+    const dayNumber = date.getDate();
+    const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
+    const monthName = date.toLocaleDateString('en-US', { month: 'short' });
+    return `<article class="detail-card ${typeClass}"><div class="date-pill">${dayNumber}<small>${escapeRosterText(weekday)} · ${escapeRosterText(monthName)} · ${escapeRosterText(detail.type)}</small></div><div class="card-main"><h3>${escapeRosterText(weekdayDetailDate(detail.date))} · ${escapeRosterText(detail.type)}</h3><p>Report ${escapeRosterText(detail.report)} · Ceremony ${escapeRosterText(detail.time)}</p><p>${openGmc ? `${openGmc} GMC ${openGmc === 1 ? 'slot' : 'slots'} open` : 'GMC slots filled'}${openPoc ? ' · 1 POC lead slot open' : ' · POC lead filled'}</p><div class="tags">${openGmc ? `<span class="tag warn">${openGmc} GMC open</span>` : ''}${openPoc ? '<span class="tag danger">1 POC open</span>' : ''}</div></div><div class="card-actions"><button class="secondary" onclick="detailModal('${detail.id}')">View roster</button><button class="primary" onclick="signup('${detail.id}')">Select shift</button></div></article>`;
   }).join('');
 }
 
@@ -192,7 +204,7 @@ async function assignCadetFromWorkload(cadetId) {
   const detailMonth = monthlyWorkloadMonth || scheduleMonthValue();
   const compatibleDetails = data.details.filter(detail => detail.date.startsWith(detailMonth) && !detail.blocked && (cadet.cadet_type === 'POC' ? !detail.poc : detail.cadets.some(name => !name)));
   if (!compatibleDetails.length) return toast(`There are no open ${cadet.cadet_type === 'POC' ? 'POC' : 'GMC'} positions for ${cadet.full_name} in this month.`);
-  modal(`<p class="eyebrow">QUICK PLACEMENT</p><h2>${escapeRosterText(cadet.full_name)}</h2><p>${escapeRosterText(cadet.cadet_type)} · ${cadet.count} shift${cadet.count === 1 ? '' : 's'} in this month. Choose an eligible open flag detail.</p><div class="form-row"><label>Open shift</label><select id="workload-placement-detail">${compatibleDetails.map(detail => `<option value="${detail.id}">${escapeRosterText(fmtDate(detail.date))} · ${escapeRosterText(detail.type)} · report ${escapeRosterText(detail.report)}</option>`).join('')}</select></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="save-workload-placement">Assign shift</button></div>`);
+  modal(`<p class="eyebrow">QUICK PLACEMENT</p><h2>${escapeRosterText(cadet.full_name)}</h2><p>${escapeRosterText(cadet.cadet_type)} · ${cadet.count} shift${cadet.count === 1 ? '' : 's'} in this month. Choose an eligible open flag detail.</p><div class="form-row"><label>Open shift</label><select id="workload-placement-detail">${compatibleDetails.map(detail => `<option value="${detail.id}">${escapeRosterText(weekdayDetailDate(detail.date))} · ${escapeRosterText(detail.type)} · report ${escapeRosterText(detail.report)}</option>`).join('')}</select></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="save-workload-placement">Assign shift</button></div>`);
   document.querySelector('#save-workload-placement').onclick = async () => {
     const detailId = document.querySelector('#workload-placement-detail').value;
     const detail = data.details.find(item => item.id === detailId);
@@ -242,7 +254,7 @@ window.detailModal = async id => {
     return `<div class="detail-row roster-slot"><span>${escapeRosterText(name)}</span></div>`;
   }).join('');
   const poc = detail.poc ? (superAdmin && detail.pocId ? `<select class="detail-row roster-slot inline-replacement" data-current-cadet-id="${detail.pocId}">${options(pocs, 'Select POC cadet', detail.pocId)}</select>` : `<div class="detail-row roster-slot"><span>${escapeRosterText(detail.poc)}</span></div>`) : staff ? `<select class="detail-row roster-slot inline-assignment" data-position="POC"><option value="">Open POC lead position</option>${options(pocs, 'Select POC cadet').replace(/^<option[^>]*>.*?<\/option>/, '')}</select>` : `<div class="detail-row roster-slot open-slot"><span>Open POC lead position</span></div>`;
-  modal(`<p class="eyebrow">${fmtDate(detail.date)} · ${detail.type}</p><h2>${detail.type} flag detail</h2><p>Report ${detail.report}; ceremony ${detail.time}.</p><div class="form-row"><label>GMC roster (${detail.cadets.filter(Boolean).length}/3)</label>${roster}</div><div class="form-row"><label>POC lead</label>${poc}</div><div class="modal-actions">${staff ? '<button class="secondary" id="detail-edit-times">Edit times</button><button class="primary" id="save-staff-assignments" disabled>Assign selected</button>' : '<button class="primary" id="detail-signup">Select shift</button>'}</div>`);
+  modal(`<p class="eyebrow">${weekdayDetailDate(detail.date)} · ${detail.type}</p><h2>${detail.type} flag detail</h2><p>Report ${detail.report}; ceremony ${detail.time}.</p><div class="form-row"><label>GMC roster (${detail.cadets.filter(Boolean).length}/3)</label>${roster}</div><div class="form-row"><label>POC lead</label>${poc}</div><div class="modal-actions">${staff ? '<button class="secondary" id="detail-edit-times">Edit times</button><button class="primary" id="save-staff-assignments" disabled>Assign selected</button>' : '<button class="primary" id="detail-signup">Select shift</button>'}</div>`);
   if (!staff) document.querySelector('#detail-signup').onclick = () => signup(detail.id);
   if (staff) {
     document.querySelector('#detail-edit-times').onclick = () => openDetailTimeEditor(detail);
@@ -485,7 +497,7 @@ window.signup = async detailId => {
   let currentMonthCount = 0;
   try { currentMonthCount = (await monthlyShiftCounts(detail.date)).get(profile.id) || 0; }
   catch (countError) { return toast(`Could not load your monthly shift count: ${countError.message}`); }
-  modal(`<p class="eyebrow">CONFIRM FLAG DETAIL</p><h2>${detail.type} · ${fmtDate(detail.date)}</h2><p>You are claiming the <strong>${slotLabel}</strong> position. Report at ${detail.report}; ceremony at ${detail.time}.</p><p><strong>Your shifts this month: (${currentMonthCount})</strong></p><p>This is first come, first served. Once confirmed, it becomes part of your schedule.</p><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="confirm-detail-claim">Yes, confirm this shift</button></div>`);
+  modal(`<p class="eyebrow">CONFIRM FLAG DETAIL</p><h2>${detail.type} · ${weekdayDetailDate(detail.date)}</h2><p>You are claiming the <strong>${slotLabel}</strong> position. Report at ${detail.report}; ceremony at ${detail.time}.</p><p><strong>Your shifts this month: (${currentMonthCount})</strong></p><p>This is first come, first served. Once confirmed, it becomes part of your schedule.</p><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="confirm-detail-claim">Yes, confirm this shift</button></div>`);
   document.querySelector('#confirm-detail-claim').onclick = async () => {
     const button = document.querySelector('#confirm-detail-claim');
     button.disabled = true; button.textContent = 'Confirming…';
@@ -594,7 +606,7 @@ async function openSuperAdminPlacement() {
   if (!openDetails.length) return toast('There are no unfilled positions in the published schedule.');
   const { data: cadets, error } = await supabaseClient.from('profiles').select('id,full_name,cadet_type,active').eq('active', true).order('full_name');
   if (error) return toast(error.message);
-  modal(`<p class="eyebrow">SUPER ADMIN PLACEMENT</p><h2>Place cadet in an open position</h2><p>GMC cadets fill GMC slots; POCs fill POC lead slots. The schedule is checked before saving.</p><div class="form-row"><label>Flag detail</label><select id="placement-detail">${openDetails.map(detail => `<option value="${detail.id}">${fmtDate(detail.date)} · ${detail.type} · ${detail.report}</option>`).join('')}</select></div><div class="form-row"><label>Cadet</label><select id="placement-cadet">${(cadets || []).map(cadet => `<option value="${cadet.id}">${cadet.full_name} (${cadet.cadet_type})</option>`).join('')}</select></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="place-cadet">Place cadet</button></div>`);
+  modal(`<p class="eyebrow">SUPER ADMIN PLACEMENT</p><h2>Place cadet in an open position</h2><p>GMC cadets fill GMC slots; POCs fill POC lead slots. The schedule is checked before saving.</p><div class="form-row"><label>Flag detail</label><select id="placement-detail">${openDetails.map(detail => `<option value="${detail.id}">${weekdayDetailDate(detail.date)} · ${detail.type} · ${detail.report}</option>`).join('')}</select></div><div class="form-row"><label>Cadet</label><select id="placement-cadet">${(cadets || []).map(cadet => `<option value="${cadet.id}">${cadet.full_name} (${cadet.cadet_type})</option>`).join('')}</select></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="place-cadet">Place cadet</button></div>`);
   document.querySelector('#place-cadet').onclick = async () => {
     const detailId = document.querySelector('#placement-detail').value;
     const cadetId = document.querySelector('#placement-cadet').value;
