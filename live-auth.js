@@ -55,6 +55,17 @@ function weekdayDetailDate(date) {
   });
 }
 
+// The sidebar badge and dashboard metric must be based on the live roster,
+// not the original demo state. Count actual unfilled GMC and POC positions.
+function refreshOpenPositionIndicators() {
+  const activeDetails = (data?.details || []).filter(detail => !detail.blocked);
+  const openPositionsTotal = activeDetails.reduce((total, detail) => total + openPositions(detail), 0);
+  const openBadge = document.querySelector('#open-count');
+  const openMetric = document.querySelector('#open-number');
+  if (openBadge) openBadge.textContent = openPositionsTotal;
+  if (openMetric) openMetric.textContent = openPositionsTotal;
+}
+
 function escapeRosterText(value) {
   return String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 }
@@ -131,6 +142,7 @@ function renderCalendar() {
 // It contains only active vacancies; the full assignment list belongs on Monthly Schedule.
 function renderOpen() {
   const board = document.querySelector('#open-details');
+  refreshOpenPositionIndicators();
   const selectedMonth = scheduleMonthValue();
   const monthLabel = new Date(`${selectedMonth}-01T12:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const publishedForMonth = data.details.filter(detail => detail.date.startsWith(selectedMonth));
