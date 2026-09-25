@@ -18,11 +18,23 @@ Deno.serve(async (request) => {
   const { data: { user } } = await userClient.auth.getUser();
   if (!user) return new Response(JSON.stringify({ error: "Invalid session" }), { status: 401, headers });
 
-  // Supabase provides this built-in secret to Edge Functions. Avoid parsing
-  // undocumented environment values here: a malformed value would terminate
-  // the request before it can reach the email provider.
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!serviceKey) return new Response(JSON.stringify({ error: "Notification service configuration is incomplete" }), { status: 500, headers });
+  // New Supabase projects provide their server key as a JSON dictionary.
+  // The legacy service-role secret is retained only as a backwards-compatible
+  // fallback. Parse defensively so configuration errors return JSON instead
+  // of terminating the Edge Function before a response can be sent.
+  let serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  if (!serviceKey) {
+    try {
+      const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}") as Record<string, unknown>;
+      serviceKey = Object.values(secretKeys).find(value => typeof value === "string" && value.length > 0) as string || "";
+    } catch (error) {
+      console.error("Could not read Supabase secret keys", error);
+    }
+  }
+  if (!serviceKey) {
+    console.error("Notification service configuration is incomplete");
+    return new Response(JSON.stringify({ error: "Notification service configuration is incomplete" }), { status: 500, headers });
+  }
   const adminClient = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey);
   const { recipientId, subject, html, eventType, entityType, entityId } = await request.json();
   if (!recipientId || !subject || !html || !eventType || !entityType || !entityId) {
@@ -45,7 +57,11 @@ Deno.serve(async (request) => {
     headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({ from: "DET 607 Flag Detail <noreply@mail.det607flagdetail.com>", to: [recipient.email], subject, html }),
   });
-  if (!response.ok) return new Response(JSON.stringify({ error: `Email provider rejected the request: ${(await response.text()).slice(0, 300)}` }), { status: 502, headers });
+  if (!response.ok) {
+    const providerError = (await response.text()).slice(0, 300);
+    console.error("Email provider rejected the request", providerError);
+    return new Response(JSON.stringify({ error: `Email provider rejected the request: ${providerError}` }), { status: 502, headers });
+  }
 
   await adminClient.from("notification_outbox").insert({ recipient_id: recipientId, event_type: eventType, entity_type: entityType, entity_id: entityId, delivered_at: new Date().toISOString() });
   return new Response(JSON.stringify({ ok: true }), { headers });
