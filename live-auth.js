@@ -405,6 +405,7 @@ if (supabaseClient) {
 const profileMenu = document.querySelector('#profile-menu');
 const profilePopover = document.querySelector('#profile-popover');
 const signOutButton = document.querySelector('#sign-out');
+const manageProfileButton = document.querySelector('#manage-profile');
 document.querySelector('#edit-important-contact')?.addEventListener('click', openImportantContactEditor);
 document.querySelector('#important-information-toggle')?.addEventListener('click', () => {
   const content = document.querySelector('#important-information-content');
@@ -419,6 +420,40 @@ profileMenu?.addEventListener('click', () => {
   profilePopover.hidden = !opening;
   profileMenu.setAttribute('aria-expanded', String(opening));
 });
+function openOwnProfile() {
+  const profile = window.det607CurrentProfile;
+  if (!profile) return toast('Your profile is still loading. Try again in a moment.');
+  const levels = [100, 150, 200, 250, 300, 400, 500, 600];
+  const flights = ['Alpha Flight', 'Bravo Flight', 'Charlie Flight', 'Delta Flight', 'POC Flight'];
+  const schools = [['FSU', 'FSU — Fayetteville State University'], ['UNCP', 'UNCP — University of North Carolina at Pembroke'], ['MU', 'MU — Methodist University'], ['FTCC', 'FTCC — Fayetteville Technical Community College'], ['CU', 'CU — Campbell University'], ['OTHER', 'Other']];
+  const selectOptions = (items, selected, label) => `<option value="">${label}</option>${items.map(item => { const [value, text] = Array.isArray(item) ? item : [item, item]; return `<option value="${value}" ${value === selected ? 'selected' : ''}>${text}</option>`; }).join('')}`;
+  profilePopover.hidden = true;
+  profileMenu.setAttribute('aria-expanded', 'false');
+  modal(`<p class="eyebrow">MY ROSTER PROFILE</p><h2>${escapeRosterText(profile.full_name || 'Cadet')}</h2><p>Keep your contact and academic details current. Your cadet classification and administrator access are managed separately.</p><div class="form-row"><label>Email address</label><input value="${escapeRosterText(document.querySelector('#profile-email').textContent)}" readonly></div><div class="form-row"><label>Phone number</label><input id="my-profile-phone" type="tel" value="${escapeRosterText(profile.phone || '')}" placeholder="Phone number"></div><div class="form-row"><label>Class level</label><select id="my-profile-level">${selectOptions(levels, profile.class_level, 'Select level')}</select></div><div class="form-row"><label>Flight</label><select id="my-profile-flight">${selectOptions(flights, profile.flight_name, 'Flight not set')}</select></div><div class="form-row"><label>School</label><select id="my-profile-school">${selectOptions(schools, profile.school_code, 'Select school')}</select></div><div class="form-row" id="my-profile-other-wrap" ${profile.school_code === 'OTHER' ? '' : 'hidden'}><label>Other school name</label><input id="my-profile-other-school" value="${escapeRosterText(profile.other_school_name || '')}"></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="save-my-profile">Save profile</button></div>`);
+  const school = document.querySelector('#my-profile-school');
+  school.onchange = () => { document.querySelector('#my-profile-other-wrap').hidden = school.value !== 'OTHER'; };
+  document.querySelector('#save-my-profile').onclick = async () => {
+    const level = Number(document.querySelector('#my-profile-level').value) || null;
+    const schoolCode = school.value || null;
+    const otherSchool = document.querySelector('#my-profile-other-school')?.value.trim() || null;
+    if (schoolCode === 'OTHER' && !otherSchool) return toast('Enter the name of your school.');
+    const button = document.querySelector('#save-my-profile');
+    button.disabled = true; button.textContent = 'Saving…';
+    const { error } = await supabaseClient.rpc('update_my_profile_details', {
+      new_phone: document.querySelector('#my-profile-phone').value.trim(),
+      new_class_level: level,
+      new_flight_name: document.querySelector('#my-profile-flight').value || null,
+      new_school_code: schoolCode,
+      new_other_school_name: otherSchool
+    });
+    if (error) { button.disabled = false; button.textContent = 'Save profile'; return toast(error.message); }
+    close();
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    await applySession(session);
+    toast('Your profile was updated.');
+  };
+}
+manageProfileButton?.addEventListener('click', openOwnProfile);
 signOutButton?.addEventListener('click', async () => {
   signOutButton.disabled = true;
   await supabaseClient.auth.signOut();
