@@ -315,8 +315,15 @@ async function loadLiveRoster(profile, email) {
   document.querySelector('#profile-role').textContent = profileRole;
   window.det607CurrentProfile=profile; applyRoleAccess(profile); await loadImportantInformation(); document.dispatchEvent(new CustomEvent('det607:profile', { detail: { profile, email } }));
   document.querySelector('#page-title').textContent = `Welcome, ${displayName}.`;
-  const first = mapped[0]?.date ? new Date(mapped[0].date + 'T12:00') : new Date();
-  month = first.getMonth(); year = first.getFullYear(); render(); setPortalToday(); syncScheduleMonthPicker();
+  // Keep the month the Super Admin selected visible after publishing. Older
+  // behavior always jumped back to the first published month (usually
+  // September), making newly published templates appear to be missing.
+  const selectedMonthKey = scheduleMonthValue();
+  const selectedMonthExists = mapped.some(detail => detail.date.startsWith(selectedMonthKey));
+  const visibleMonth = selectedMonthExists
+    ? new Date(`${selectedMonthKey}-01T12:00`)
+    : (mapped[0]?.date ? new Date(mapped[0].date + 'T12:00') : new Date());
+  month = visibleMonth.getMonth(); year = visibleMonth.getFullYear(); render(); setPortalToday(); syncScheduleMonthPicker();
 }
 
 async function applySession(session) {
@@ -449,18 +456,27 @@ async function publishSelectedMonth(monthKey) {
   const { data, error } = await supabaseClient.rpc('publish_month_schedule', { target_month: monthKey });
   if (error) return toast(error.message);
   const published = Array.isArray(data) ? data[0] : data;
-  let emailed = 0;
-  for (const recipientId of published?.recipient_ids || []) {
-    const result = await supabaseClient.functions.invoke('send-notification', { body: {
-      recipientId, eventType: 'SCHEDULE_PUBLISHED', entityType: 'SCHEDULE', entityId: published.schedule_id,
-      subject: 'DET 607 Flag Detail schedule is open',
-      html: `<h2>Schedule published</h2><p>The ${publishLabel} flag-detail schedule is now open.</p><p>Sign in to review Reveille and Retreat details and claim an eligible open position.</p>`
-    }});
-    if (!result.error && !result.data?.error) emailed++;
-  }
+  // Reveal the month template immediately. Notification delivery must never
+  // delay the newly published Reveille and Retreat details from appearing.
   const { data: { session } } = await supabaseClient.auth.getSession();
   await applySession(session);
-  toast(`Schedule published. ${emailed} active cadet notification${emailed === 1 ? '' : 's'} sent.`);
+  toast(`Schedule published. The ${publishLabel} template is ready for sign-up; notifications are sending.`);
+  void (async () => {
+    let emailed = 0;
+    for (const recipientId of published?.recipient_ids || []) {
+      try {
+        await deliverNotification({
+          recipientId, eventType: 'SCHEDULE_PUBLISHED', entityType: 'SCHEDULE', entityId: published.schedule_id,
+          subject: 'DET 607 Flag Detail schedule is open',
+          html: `<h2>Schedule published</h2><p>The ${publishLabel} flag-detail schedule is now open.</p><p>Sign in to review Reveille and Retreat details and claim an eligible open position.</p>`
+        });
+        emailed += 1;
+      } catch (notificationError) {
+        console.error('Could not send a schedule publication email.', notificationError);
+      }
+    }
+    console.info(`Schedule publication notifications delivered: ${emailed}.`);
+  })();
 }
 
 function publishCurrentMonth() {
