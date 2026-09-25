@@ -513,9 +513,26 @@ window.unblockScheduleDate = async date => {
   const { error } = await supabaseClient.rpc('super_admin_unblock_schedule_date', { target_date: date });
   if (error) return toast(error.message);
   close();
-  const { data: { session } } = await supabaseClient.auth.getSession();
-  await applySession(session);
-  toast('Date unblocked. Open positions are available for sign-up again.');
+  // Reset the local calendar immediately so the former gray blocked card cannot
+  // linger while the fresh roster is loading. The server still enforces that
+  // only a published, unblocked detail can be claimed.
+  data.details.forEach(detail => {
+    if (detail.date === date) {
+      detail.blocked = false;
+      detail.blockedReason = null;
+      detail.status = 'open';
+    }
+  });
+  delete data.blocked[date];
+  renderCalendar();
+  renderOpen();
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    await applySession(session);
+  } catch (reloadError) {
+    console.error('Could not reload the roster after unblocking a date.', reloadError);
+  }
+  toast('Date unblocked. Reveille and Retreat are open for eligible cadets to sign up again.');
 };
 
 document.querySelector('#block-date').onclick = blockScheduleDate;
