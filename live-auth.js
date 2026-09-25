@@ -538,15 +538,40 @@ async function blockScheduleDate(initialDate = '') {
     if (!date || !reason) return toast('Enter both a date and reason.');
     const button = document.querySelector('#confirm-block-date'); button.disabled = true; button.textContent = 'Blocking…';
     const day = new Date(`${date}T12:00`).getDay();
-    if (day === 0 || day === 6) { button.disabled = false; button.textContent = 'Confirm block'; return toast('There is no flag detail on weekends. Select a weekday.'); }
+    if (day === 0 || day === 5 || day === 6) { button.disabled = false; button.textContent = 'Confirm block'; return toast('Flag detail is scheduled Monday through Thursday only.'); }
     const { data, error } = await supabaseClient.rpc('super_admin_block_schedule_date', { target_date: date, block_reason: reason });
     if (error) { button.disabled = false; button.textContent = 'Block date'; return toast(error.message); }
     const result = Array.isArray(data) ? data[0] : data;
-    for (const recipientId of result?.recipient_ids || []) {
-      await supabaseClient.functions.invoke('send-notification', { body: { recipientId, eventType: 'DETAIL_BLOCKED', entityType: 'DATE', entityId: result.event_id, subject: `DET 607 Flag Detail cancelled — ${fmtDate(date)}`, html: `<h2>Flag detail cancelled</h2><p>Your Reveille or Retreat assignment on ${fmtDate(date)} has been removed.</p><p>Reason: ${reason}</p>` } });
-    }
-    close(); const { data: { session } } = await supabaseClient.auth.getSession(); await applySession(session);
+    // Show the unavailable state as soon as the server confirms the block.
+    // Email cancellation notices and the background roster reload must not
+    // make the Super Admin wait or manually refresh the calendar.
+    data.details.forEach(detail => {
+      if (detail.date === date) {
+        detail.blocked = true;
+        detail.blockedReason = reason;
+        detail.status = 'blocked';
+      }
+    });
+    data.blocked[date] = reason;
+    close();
+    renderCalendar();
+    renderOpen();
     toast(`Date blocked. ${result?.removed_assignments || 0} assignment${result?.removed_assignments === 1 ? '' : 's'} removed.`);
+    void (async () => {
+      for (const recipientId of result?.recipient_ids || []) {
+        try {
+          await deliverNotification({ recipientId, eventType: 'DETAIL_BLOCKED', entityType: 'DATE', entityId: result.event_id, subject: `DET 607 Flag Detail cancelled — ${fmtDate(date)}`, html: `<h2>Flag detail cancelled</h2><p>Your Reveille or Retreat assignment on ${fmtDate(date)} has been removed.</p><p>Reason: ${reason}</p>` });
+        } catch (notificationError) {
+          console.error('Could not send a block cancellation email.', notificationError);
+        }
+      }
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        await applySession(session);
+      } catch (reloadError) {
+        console.error('Could not reload the roster after blocking a date.', reloadError);
+      }
+    })();
   };
 }
 
