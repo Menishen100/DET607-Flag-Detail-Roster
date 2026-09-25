@@ -77,7 +77,7 @@ function renderCalendar() {
       const typeClass = detail.type === 'Reveille' ? 'reveille-detail' : 'retreat-detail';
       return `<div class="mini-detail ${typeClass} ${detail.status === 'ready' ? 'ready-card' : ''}" onclick="detailModal('${detail.id}')"><strong>${escapeRosterText(detail.type)} · ${escapeRosterText(detail.time)}</strong><span>${remainingGmc} GMC open · ${pocStatus}</span></div>`;
     }).join('');
-    cells.push(`<div class="cal-day ${iso === todayKey ? 'today' : ''} ${blocked ? 'blocked-day' : ''}"><div class="cal-date">${day}</div>${blocked ? `<p class="blocked-note">${escapeRosterText(blocked)}</p>` : detailCards || '<p class="blocked-note">No detail</p>'}${canBlock && !blocked ? `<button class="text-button block-calendar-date" onclick="blockScheduleDate('${iso}')">Block date</button>` : ''}</div>`);
+    cells.push(`<div class="cal-day ${iso === todayKey ? 'today' : ''} ${blocked ? 'blocked-day' : ''}"><div class="cal-date">${day}</div>${blocked ? `<p class="blocked-note"><strong>Unavailable</strong><span>${escapeRosterText(blocked)}</span></p>${canBlock ? `<button class="text-button block-calendar-date" onclick="unblockScheduleDate('${iso}')">Unblock date</button>` : ''}` : `${detailCards || '<p class="blocked-note">No detail</p>'}${canBlock ? `<button class="text-button block-calendar-date" onclick="blockScheduleDate('${iso}')">Block date</button>` : ''}`}</div>`);
   }
 
   document.querySelector('#calendar').innerHTML = cells.join('');
@@ -89,7 +89,14 @@ function renderCalendar() {
     summary.innerHTML = '<p class="muted">No published schedule exists for this month. Select a month and use Publish schedule to create the weekday details.</p>';
     return;
   }
+  const renderedBlockedDates = new Set();
   summary.innerHTML = monthDetails.map(detail => {
+    if (detail.blocked) {
+      if (renderedBlockedDates.has(detail.date)) return '';
+      renderedBlockedDates.add(detail.date);
+      const unblock = window.det607CurrentProfile?.admin_level === 'SUPER_ADMIN' ? `<button class="secondary" onclick="unblockScheduleDate('${detail.date}')">Unblock date</button>` : '';
+      return `<article class="monthly-roster-card blocked-roster-card"><div><p class="eyebrow">${escapeRosterText(fmtDate(detail.date))}</p><h3>Flag detail unavailable</h3><p><strong>Reason:</strong> ${escapeRosterText(detail.blockedReason || 'Unavailable')}</p></div><div class="roster-slot-status"><span class="tag danger">Blocked</span>${unblock}</div></article>`;
+    }
     const namedCadets = detail.cadets.filter(Boolean);
     const openGmc = detail.cadets.filter(name => !name).length;
     const cadetText = namedCadets.length ? namedCadets.map(escapeRosterText).join(', ') : 'No GMC cadets assigned';
@@ -133,6 +140,10 @@ async function deliverNotification(payload) {
 window.detailModal = async id => {
   const detail = data.details.find(item => String(item.id) === String(id));
   if (!detail) return toast('This flag detail is no longer available.');
+  if (detail.blocked) {
+    const unblock = window.det607CurrentProfile?.admin_level === 'SUPER_ADMIN' ? `<button class="primary" onclick="unblockScheduleDate('${detail.date}')">Unblock date</button>` : '<button class="secondary" onclick="close()">Close</button>';
+    return modal(`<p class="eyebrow">${fmtDate(detail.date)}</p><h2>Flag detail unavailable</h2><p>This date is blocked and cannot be selected by cadets or POCs.</p><div class="form-row"><label>Reason</label><p>${escapeRosterText(detail.blockedReason || 'Unavailable')}</p></div><div class="modal-actions">${unblock}</div>`);
+  }
   const staff = ['ADMIN', 'SUPER_ADMIN'].includes(window.det607CurrentProfile?.admin_level);
   const superAdmin = window.det607CurrentProfile?.admin_level === 'SUPER_ADMIN';
   let gmcs = [], pocs = [], shiftCounts = new Map();
@@ -342,6 +353,7 @@ window.signup = async detailId => {
   const profile = window.det607CurrentProfile;
   const detail = data.details.find(item => item.id === detailId);
   if (!profile || !detail) return typeof toast === 'function' && toast('This detail is no longer available. Refresh and try again.');
+  if (detail.blocked) return toast(`This flag detail is unavailable: ${detail.blockedReason || 'Blocked date'}.`);
   const isPoc = profile.cadet_type === 'POC';
   const slotLabel = isPoc ? 'POC lead' : 'Cadet';
   if (isPoc && detail.poc) return toast('The POC lead position for this detail has already been claimed.');
@@ -494,5 +506,16 @@ async function blockScheduleDate(initialDate = '') {
     toast(`Date blocked. ${result?.removed_assignments || 0} assignment${result?.removed_assignments === 1 ? '' : 's'} removed.`);
   };
 }
+
+window.unblockScheduleDate = async date => {
+  if (window.det607CurrentProfile?.admin_level !== 'SUPER_ADMIN') return toast('Only the Super Admin can unblock a schedule date.');
+  if (!confirm(`Unblock ${fmtDate(date)}? Cadets and POCs will be able to select any open positions on this date again.`)) return;
+  const { error } = await supabaseClient.rpc('super_admin_unblock_schedule_date', { target_date: date });
+  if (error) return toast(error.message);
+  close();
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  await applySession(session);
+  toast('Date unblocked. Open positions are available for sign-up again.');
+};
 
 document.querySelector('#block-date').onclick = blockScheduleDate;
