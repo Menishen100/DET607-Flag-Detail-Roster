@@ -35,7 +35,7 @@ function showSetup(email) {
 
 function showOnboarding(profile,email,session){authScreen.hidden=false;appShell.hidden=true;authForm.innerHTML=`<p class="eyebrow">CADET ONBOARDING</p><h2>Complete your profile</h2><p class="muted">Add your roster information before using the flag-detail portal.</p><label>Email<input value="${email}" readonly></label><label>Phone number<input id="onboard-phone" type="tel" required></label><label>Class level<select id="onboard-level" required><option value="">Select level</option>${[100,150,200,250,300,400,500,600].map(x=>`<option value="${x}">${x}</option>`).join('')}</select></label><label>School<select id="onboard-school" required><option value="">Select school</option><option value="FSU">FSU — Fayetteville State University</option><option value="UNCP">UNCP — University of North Carolina at Pembroke</option><option value="MU">MU — Methodist University</option><option value="FTCC">FTCC — Fayetteville Technical Community College</option><option value="CU">CU — Campbell University</option><option value="OTHER">Other</option></select></label><label id="onboard-other-wrap" hidden>Other school name<input id="onboard-other"></label><button class="primary" type="submit">Complete profile</button>`;const school=document.querySelector('#onboard-school');school.onchange=()=>document.querySelector('#onboard-other-wrap').hidden=school.value!=='OTHER';authForm.onsubmit=async e=>{e.preventDefault();const schoolCode=school.value,other=document.querySelector('#onboard-other').value.trim();if(schoolCode==='OTHER'&&!other)return authStatus('Enter your school name.','error');const {error}=await supabaseClient.rpc('update_my_profile_details',{new_phone:document.querySelector('#onboard-phone').value.trim(),new_class_level:Number(document.querySelector('#onboard-level').value),new_flight_name:null,new_school_code:schoolCode,new_other_school_name:other||null});if(error)return authStatus(error.message,'error');const done=await supabaseClient.rpc('complete_my_onboarding');if(done.error)return authStatus(done.error.message,'error');sessionStorage.removeItem(inviteOnboardingKey);await applySession(session)}}
 
-function applyRoleAccess(profile){const staff=['ADMIN','SUPER_ADMIN'].includes(profile?.admin_level),superAdmin=profile?.admin_level==='SUPER_ADMIN';document.querySelector('#publish').hidden=!superAdmin;document.querySelector('#assign-cadet').hidden=!superAdmin;document.querySelector('#block-date').hidden=!superAdmin;document.querySelector('#edit-times')?.parentElement&&(document.querySelector('#edit-times').parentElement.hidden=!staff);document.querySelector('[data-view="attendance"]').hidden=!staff;document.querySelector('[data-view="counseling"]').hidden=!staff;document.querySelector('#record-attendance').hidden=!staff;document.querySelector('#new-case').hidden=!staff;document.querySelector('#edit-important-contact').hidden=!staff;}
+function applyRoleAccess(profile){const staff=['ADMIN','SUPER_ADMIN'].includes(profile?.admin_level),superAdmin=profile?.admin_level==='SUPER_ADMIN';document.querySelector('#publish').hidden=!superAdmin;document.querySelector('#assign-cadet').hidden=!superAdmin;document.querySelector('#block-date').hidden=!superAdmin;document.querySelector('#edit-times')?.parentElement&&(document.querySelector('#edit-times').parentElement.hidden=!staff);document.querySelector('[data-view="attendance"]').hidden=!staff;document.querySelector('[data-view="counseling"]').hidden=!staff;document.querySelector('#record-attendance').hidden=!staff;document.querySelector('#new-case').hidden=!staff;document.querySelector('#edit-important-contact').hidden=!staff;document.querySelector('#monthly-workload-report').hidden=!staff;}
 
 async function loadImportantInformation(){const {data:settings,error}=await supabaseClient.rpc('get_portal_important_information_content');if(error)return;const setting=Array.isArray(settings)?settings[0]:settings;if(!setting)return;[['#important-reveille-title','reveille_title'],['#important-reveille-message','reveille_message'],['#important-retreat-title','retreat_title'],['#important-retreat-message','retreat_message'],['#important-dress-message','dress_message'],['#important-coverage-message','coverage_message'],['#important-missed-message','missed_message'],['#important-note','note_message'],['#important-contact-name','contact_name']].forEach(([selector,key])=>{if(setting[key])document.querySelector(selector).textContent=setting[key];});const email=document.querySelector('#important-contact-email');email.textContent=setting.contact_email;email.href=`mailto:${setting.contact_email}`;const discord=document.querySelector('#important-contact-discord');discord.textContent=setting.contact_discord?` or on Discord (${setting.contact_discord})`:'';}
 
@@ -93,6 +93,7 @@ function renderCalendar() {
 
   document.querySelector('#calendar').innerHTML = cells.join('');
   document.querySelector('#month-title').textContent = first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  renderMonthlyWorkloadReport();
 
   const summary = document.querySelector('#monthly-roster-summary');
   if (!summary) return;
@@ -139,6 +140,35 @@ async function monthlyShiftCounts(detailDate) {
   const { data: counts, error } = await supabaseClient.rpc('get_monthly_shift_counts', { target_month: targetMonth });
   if (error) throw error;
   return new Map((counts || []).map(item => [item.cadet_id, Number(item.shift_count) || 0]));
+}
+
+let workloadReportKey = '';
+async function renderMonthlyWorkloadReport() {
+  const panel = document.querySelector('#monthly-workload-report');
+  const content = document.querySelector('#monthly-workload-content');
+  const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(window.det607CurrentProfile?.admin_level);
+  if (!panel || !content) return;
+  panel.hidden = !isAdmin;
+  if (!isAdmin) return;
+  const targetMonth = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+  const key = `${targetMonth}:${window.det607CurrentProfile.id}`;
+  workloadReportKey = key;
+  content.innerHTML = '<p class="muted">Loading staffing report…</p>';
+  const [profilesResult, countsResult] = await Promise.all([
+    supabaseClient.from('profiles').select('id,full_name,cadet_type,class_level').eq('active', true).order('full_name'),
+    supabaseClient.rpc('get_monthly_shift_counts', { target_month: targetMonth })
+  ]);
+  if (workloadReportKey !== key) return;
+  if (profilesResult.error || countsResult.error) {
+    content.innerHTML = `<p class="muted">The staffing report could not load: ${escapeRosterText((profilesResult.error || countsResult.error).message)}</p>`;
+    return;
+  }
+  const counts = new Map((countsResult.data || []).map(item => [item.cadet_id, Number(item.shift_count) || 0]));
+  const cadets = (profilesResult.data || []).map(cadet => ({ ...cadet, count: counts.get(cadet.id) || 0 }))
+    .sort((left, right) => left.count - right.count || left.full_name.localeCompare(right.full_name));
+  const zeroShiftCadets = cadets.filter(cadet => cadet.count === 0);
+  const assignedCadets = cadets.length - zeroShiftCadets.length;
+  content.innerHTML = `<div class="workload-metrics"><div><strong>${cadets.length}</strong><span>Active cadets</span></div><div><strong>${assignedCadets}</strong><span>Cadets with a shift</span></div><div><strong>${zeroShiftCadets.length}</strong><span>Cadets with no shift</span></div></div><div class="zero-shift-list"><strong>Cadets with no ${escapeRosterText(new Date(`${targetMonth}T12:00`).toLocaleDateString('en-US', { month: 'long' }))} shifts</strong><p>${zeroShiftCadets.length ? zeroShiftCadets.map(cadet => `${escapeRosterText(cadet.full_name)} (${escapeRosterText(cadet.cadet_type || 'Cadet')})`).join(' · ') : 'Every active cadet has at least one shift.'}</p></div><table class="workload-table"><thead><tr><th>Cadet</th><th>Classification</th><th>Class level</th><th>Monthly shifts</th></tr></thead><tbody>${cadets.map(cadet => `<tr><td>${escapeRosterText(cadet.full_name)}</td><td>${escapeRosterText(cadet.cadet_type || 'Not set')}</td><td>${escapeRosterText(cadet.class_level || 'Not set')}</td><td><span class="workload-count ${cadet.count === 0 ? 'zero' : ''}">${cadet.count}</span></td></tr>`).join('')}</tbody></table>`;
 }
 
 async function deliverNotification(payload) {
