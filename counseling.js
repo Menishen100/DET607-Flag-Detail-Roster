@@ -146,6 +146,7 @@
     const canSign = isCadet && item.status === 'AWAITING_CADET_SIGNATURE';
     const review = canReview() && ['SIGNED_AWAITING_REVIEW', 'DISPUTED_AWAITING_REVIEW'].includes(item.status);
     const canResend = isStaff() && item.status === 'AWAITING_CADET_SIGNATURE';
+    const canManageDraft = state.profile?.admin_level === 'SUPER_ADMIN' && item.status === 'DRAFT';
     const details = `<p class="eyebrow">${escapeHtml(formatStatus(item.status))}</p><h2>${escapeHtml(cadetName(item))}</h2><p><strong>Assignment:</strong> ${escapeHtml(assignmentLabel(assignment))}</p><p><strong>Reason:</strong> ${escapeHtml(item.reason || 'Not specified')}</p><p><strong>Facts:</strong><br>${escapeHtml(item.facts)}</p><p><strong>Expected standard:</strong><br>${escapeHtml(item.expected_standards || 'Not specified')}</p><p><strong>Corrective action:</strong><br>${escapeHtml(item.corrective_action || 'Not specified')}</p>`;
     if (canSign) {
       openModal(`${details}<div class="form-row"><label>Your explanation</label><textarea id="cadet-explanation" placeholder="Explain what happened and any relevant context."></textarea></div><div class="form-row"><label>Dispute (optional)</label><textarea id="cadet-dispute" placeholder="State any part of the record you dispute."></textarea></div><div class="form-row"><label><input id="cadet-acknowledge" type="checkbox"> I acknowledge I reviewed this counseling record.</label></div><div class="form-row"><label>Type your full name</label><input id="cadet-signed-name" placeholder="Your full name"></div><div class="modal-actions"><button class="primary" id="sign-counseling">Sign and submit</button></div>`);
@@ -155,7 +156,13 @@
       $('#complete-counseling').onclick = () => reviewCase(item.id, 'COMPLETED');
       $('#void-counseling').onclick = () => reviewCase(item.id, 'VOIDED');
     } else {
-      openModal(`${details}${item.cadet_explanation ? `<p><strong>Cadet explanation:</strong><br>${escapeHtml(item.cadet_explanation)}</p>` : ''}<div class="modal-actions">${canResend ? '<button class="secondary" id="resend-counseling-email">Resend email</button>' : ''}<button class="secondary" onclick="document.querySelector('#modal').classList.remove('show')">Close</button></div>`);
+      openModal(`${details}${item.cadet_explanation ? `<p><strong>Cadet explanation:</strong><br>${escapeHtml(item.cadet_explanation)}</p>` : ''}<div class="modal-actions">${canManageDraft ? '<button class="danger" id="delete-counseling-draft">Delete draft</button><button class="secondary" id="edit-counseling-draft">Edit draft</button><button class="primary" id="send-counseling-draft">Send to cadet</button>' : ''}${canResend ? '<button class="secondary" id="resend-counseling-email">Resend email</button>' : ''}<button class="secondary" onclick="document.querySelector('#modal').classList.remove('show')">Close</button></div>`);
+      const editDraft = $('#edit-counseling-draft');
+      if (editDraft) editDraft.onclick = () => editDraftCase(item);
+      const sendDraft = $('#send-counseling-draft');
+      if (sendDraft) sendDraft.onclick = () => sendDraftCase(item);
+      const deleteDraft = $('#delete-counseling-draft');
+      if (deleteDraft) deleteDraft.onclick = () => deleteDraftCase(item);
       const resend = $('#resend-counseling-email');
       if (resend) resend.onclick = async () => {
         resend.disabled = true;
@@ -172,6 +179,45 @@
         }
       };
     }
+  }
+
+  function editDraftCase(item) {
+    openModal(`<p class="eyebrow">DRAFT COUNSELING</p><h2>Edit counseling draft</h2><p>Only a Super Admin can edit a draft before it is sent to the cadet.</p><div class="form-row"><label>Reason</label><input id="draft-reason" value="${escapeHtml(item.reason || '')}"></div><div class="form-row"><label>Objective facts</label><textarea id="draft-facts">${escapeHtml(item.facts || '')}</textarea></div><div class="form-row"><label>Expected standard</label><textarea id="draft-standard">${escapeHtml(item.expected_standards || '')}</textarea></div><div class="form-row"><label>Corrective action</label><textarea id="draft-action">${escapeHtml(item.corrective_action || '')}</textarea></div><div class="modal-actions"><button class="secondary" onclick="document.querySelector('#modal').classList.remove('show')">Cancel</button><button class="primary" id="save-counseling-draft-edit">Save draft</button></div>`);
+    $('#save-counseling-draft-edit').onclick = async () => {
+      const facts = $('#draft-facts').value.trim();
+      if (!facts) return showToast('Objective facts are required.');
+      const button = $('#save-counseling-draft-edit');
+      button.disabled = true; button.textContent = 'Saving…';
+      const { error } = await window.det607Supabase.rpc('super_admin_update_counseling_draft', {
+        target_case_id: item.id,
+        new_reason: $('#draft-reason').value.trim() || null,
+        new_facts: facts,
+        new_expected_standards: $('#draft-standard').value.trim() || null,
+        new_corrective_action: $('#draft-action').value.trim() || null
+      });
+      if (error) { button.disabled = false; button.textContent = 'Save draft'; return showToast(error.message); }
+      closeModal(); await loadCases(); showToast('Counseling draft updated.');
+    };
+  }
+
+  async function sendDraftCase(item) {
+    if (!confirm('Send this counseling to the cadet for review and signature?')) return;
+    const { data: updated, error } = await window.det607Supabase.rpc('super_admin_send_counseling_draft', { target_case_id: item.id });
+    if (error) return showToast(error.message);
+    const sentCase = Array.isArray(updated) ? updated[0] : updated;
+    try {
+      await sendSignatureEmail({ ...item, ...(sentCase || {}), status: 'AWAITING_CADET_SIGNATURE' });
+      closeModal(); await loadCases(); showToast('Counseling sent to the cadet for signature.');
+    } catch (sendError) {
+      closeModal(); await loadCases(); showToast(`Counseling is awaiting signature, but the email was not sent: ${sendError.message}. Use Resend email after fixing delivery.`);
+    }
+  }
+
+  async function deleteDraftCase(item) {
+    if (!confirm(`Delete the counseling draft for ${cadetName(item)}? This cannot be undone.`)) return;
+    const { error } = await window.det607Supabase.rpc('super_admin_delete_counseling_draft', { target_case_id: item.id });
+    if (error) return showToast(error.message);
+    closeModal(); await loadCases(); showToast('Counseling draft deleted.');
   }
 
   async function signCase(id) {
