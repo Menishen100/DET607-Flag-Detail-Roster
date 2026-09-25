@@ -64,6 +64,12 @@ function renderCalendar() {
   const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const canBlock = window.det607CurrentProfile?.admin_level === 'SUPER_ADMIN';
   const monthDetails = data.details.filter(detail => detail.date.startsWith(selectedMonth));
+  const firstOperationalDate = new Date(year, month, 1);
+  while (firstOperationalDate.getDay() === 0 || firstOperationalDate.getDay() === 6) firstOperationalDate.setDate(firstOperationalDate.getDate() + 1);
+  // The visual calendar starts on Monday, so pad only the weekday columns
+  // before the first operational day. This keeps a date under its real day.
+  const leadingDays = (firstOperationalDate.getDay() + 6) % 7;
+  for (let index = 0; index < leadingDays; index += 1) cells.push('<div class="cal-day calendar-padding" aria-hidden="true"></div>');
 
   for (let day = 1; day <= last.getDate(); day += 1) {
     const date = new Date(year, month, day);
@@ -74,14 +80,15 @@ function renderCalendar() {
     // blocked. This deliberately does not rely only on the cached date map,
     // so a block is reflected even while the calendar is refreshing.
     const blockedDetail = details.find(detail => detail.blocked === true || detail.blocked === 'true' || detail.status === 'blocked');
-    const blocked = blockedDetail?.blockedReason || data.blocked[iso] || '';
+    const isBlocked = Boolean(blockedDetail) || Boolean(data.blocked[iso]);
+    const blockedReason = blockedDetail?.blockedReason || data.blocked[iso] || 'Unavailable';
     const detailCards = details.map(detail => {
       const remainingGmc = detail.cadets.filter(name => !name).length;
       const pocStatus = detail.poc ? 'POC assigned' : 'POC open';
       const typeClass = detail.type === 'Reveille' ? 'reveille-detail' : 'retreat-detail';
       return `<div class="mini-detail ${typeClass} ${detail.status === 'ready' ? 'ready-card' : ''}" onclick="detailModal('${detail.id}')"><strong>${escapeRosterText(detail.type)} · ${escapeRosterText(detail.time)}</strong><span>${remainingGmc} GMC open · ${pocStatus}</span></div>`;
     }).join('');
-    cells.push(`<div class="cal-day ${iso === todayKey ? 'today' : ''} ${blocked ? 'blocked-day' : ''}"><div class="cal-date">${day}</div>${blocked ? `<p class="blocked-note"><strong>Unavailable</strong><span>${escapeRosterText(blocked)}</span></p>${canBlock ? `<button class="text-button block-calendar-date" onclick="unblockScheduleDate('${iso}')">Unblock date</button>` : ''}` : `${detailCards || '<p class="blocked-note">No detail</p>'}${canBlock ? `<button class="text-button block-calendar-date" onclick="blockScheduleDate('${iso}')">Block date</button>` : ''}`}</div>`);
+    cells.push(`<div class="cal-day ${iso === todayKey ? 'today' : ''} ${isBlocked ? 'blocked-day' : ''}"><div class="cal-date">${day}</div>${isBlocked ? `<p class="blocked-note"><strong>Unavailable</strong><span>${escapeRosterText(blockedReason)}</span></p>${canBlock ? `<button class="text-button block-calendar-date" onclick="unblockScheduleDate('${iso}')">Unblock date</button>` : ''}` : `${detailCards || '<p class="blocked-note">No detail</p>'}${canBlock ? `<button class="text-button block-calendar-date" onclick="blockScheduleDate('${iso}')">Block date</button>` : ''}`}</div>`);
   }
 
   document.querySelector('#calendar').innerHTML = cells.join('');
