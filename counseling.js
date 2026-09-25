@@ -20,6 +20,18 @@
   function openModal(html) { $('#modal-content').innerHTML = html; $('#modal').classList.add('show'); }
   function closeModal() { $('#modal').classList.remove('show'); }
 
+  async function notificationFailure(error, data) {
+    if (data?.error) return data.error;
+    try {
+      const response = error?.context?.clone ? error.context.clone() : error?.context;
+      const body = await response?.json?.();
+      if (body?.error) return body.error;
+    } catch (_) {
+      // The provider response may not be JSON; keep the safe fallback below.
+    }
+    return error?.message || 'Email service did not confirm delivery.';
+  }
+
   async function sendSignatureEmail(caseItem) {
     const message = counselingEmail();
     const { data, error } = await window.det607Supabase.functions.invoke('send-notification', {
@@ -32,7 +44,7 @@
         entityId: caseItem.id
       }
     });
-    if (error) throw error;
+    if (error) throw new Error(await notificationFailure(error, data));
     if (!data?.ok) throw new Error(data?.error || 'Email service did not confirm delivery.');
     const { error: sentAtError } = await window.det607Supabase
       .from('counseling_cases')

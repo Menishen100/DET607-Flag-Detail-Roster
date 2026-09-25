@@ -18,8 +18,10 @@ Deno.serve(async (request) => {
   const { data: { user } } = await userClient.auth.getUser();
   if (!user) return new Response(JSON.stringify({ error: "Invalid session" }), { status: 401, headers });
 
-  const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}") as Record<string, string>;
-  const serviceKey = Object.values(secretKeys).find(value => typeof value === "string") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  // Supabase provides this built-in secret to Edge Functions. Avoid parsing
+  // undocumented environment values here: a malformed value would terminate
+  // the request before it can reach the email provider.
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!serviceKey) return new Response(JSON.stringify({ error: "Notification service configuration is incomplete" }), { status: 500, headers });
   const adminClient = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey);
   const { recipientId, subject, html, eventType, entityType, entityId } = await request.json();
