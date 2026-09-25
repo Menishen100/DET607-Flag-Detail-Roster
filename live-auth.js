@@ -83,6 +83,7 @@ function renderCalendar() {
     const date = new Date(year, month, day);
     if (date.getDay() === 0 || date.getDay() === 5 || date.getDay() === 6) continue;
     const iso = `${selectedMonth}-${String(day).padStart(2, '0')}`;
+    const weekday = date.toLocaleDateString('en-US', { weekday: 'long' });
     const details = monthDetails.filter(detail => detail.date === iso);
     // Treat a date as unavailable when either of its two detail records is
     // blocked. This deliberately does not rely only on the cached date map,
@@ -96,7 +97,7 @@ function renderCalendar() {
       const typeClass = detail.type === 'Reveille' ? 'reveille-detail' : 'retreat-detail';
       return `<div class="mini-detail ${typeClass} ${detail.status === 'ready' ? 'ready-card' : ''}" onclick="detailModal('${detail.id}')"><strong>${escapeRosterText(detail.type)} · ${escapeRosterText(detail.time)}</strong><span>${remainingGmc} GMC open · ${pocStatus}</span></div>`;
     }).join('');
-    cells.push(`<div class="cal-day ${iso === todayKey ? 'today' : ''} ${isBlocked ? 'blocked-day' : ''}"><div class="cal-date">${day}</div>${isBlocked ? `<p class="blocked-note"><strong>Unavailable</strong><span>${escapeRosterText(blockedReason)}</span></p>${canBlock ? `<button class="text-button block-calendar-date" onclick="unblockScheduleDate('${iso}')">Unblock date</button>` : ''}` : `${detailCards || '<p class="blocked-note">No detail</p>'}${canBlock ? `<button class="text-button block-calendar-date" onclick="blockScheduleDate('${iso}')">Block date</button>` : ''}`}</div>`);
+    cells.push(`<div class="cal-day ${iso === todayKey ? 'today' : ''} ${isBlocked ? 'blocked-day' : ''}"><div class="cal-date"><span class="mobile-weekday">${weekday}</span><span>${day}</span></div>${isBlocked ? `<p class="blocked-note"><strong>Unavailable</strong><span>${escapeRosterText(blockedReason)}</span></p>${canBlock ? `<button class="text-button block-calendar-date" onclick="unblockScheduleDate('${iso}')">Unblock date</button>` : ''}` : `${detailCards || '<p class="blocked-note">No detail</p>'}${canBlock ? `<button class="text-button block-calendar-date" onclick="blockScheduleDate('${iso}')">Block date</button>` : ''}`}</div>`);
   }
 
   document.querySelector('#calendar').innerHTML = cells.join('');

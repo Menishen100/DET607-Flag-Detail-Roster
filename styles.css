@@ -131,3 +131,8 @@
 
 /* Every logged-in account keeps its own profile and sign-out controls on mobile. */
 @media(max-width:720px){.side-bottom{display:block;position:relative;margin-top:10px}.profile-popover{position:absolute;top:58px;bottom:auto;left:0;right:0}.user-card{padding:12px 4px}.reset{display:none}}
+
+/* A calendar grid becomes misleading on a narrow phone screen. Show each
+   operational date in a simple chronological list and label it explicitly. */
+.mobile-weekday{display:none}
+@media(max-width:720px){.calendar{grid-template-columns:1fr}.calendar .day-head,.calendar .calendar-padding{display:none}.cal-day{min-height:0;border-right:0}.cal-date{display:flex;align-items:center;justify-content:space-between;font-size:13px}.mobile-weekday{display:block;color:var(--navy);font:700 11px 'DM Mono';text-transform:uppercase}.cal-day.today .cal-date{border-radius:5px;width:auto;height:auto;padding:5px 7px}.cal-day.today .cal-date .mobile-weekday{color:white}}
