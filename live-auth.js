@@ -58,14 +58,14 @@ function setPortalToday(){const now=new Date();document.querySelector('#today-la
 function renderCalendar() {
   const first = new Date(year, month, 1);
   const last = new Date(year, month + 1, 0);
-  const cells = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map(day => `<div class="day-head">${day}</div>`);
+  const cells = ['Mon', 'Tue', 'Wed', 'Thu'].map(day => `<div class="day-head">${day}</div>`);
   const selectedMonth = `${year}-${String(month + 1).padStart(2, '0')}`;
   const today = new Date();
   const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const canBlock = window.det607CurrentProfile?.admin_level === 'SUPER_ADMIN';
   const monthDetails = data.details.filter(detail => detail.date.startsWith(selectedMonth));
   const firstOperationalDate = new Date(year, month, 1);
-  while (firstOperationalDate.getDay() === 0 || firstOperationalDate.getDay() === 6) firstOperationalDate.setDate(firstOperationalDate.getDate() + 1);
+  while (firstOperationalDate.getDay() === 0 || firstOperationalDate.getDay() === 5 || firstOperationalDate.getDay() === 6) firstOperationalDate.setDate(firstOperationalDate.getDate() + 1);
   // The visual calendar starts on Monday, so pad only the weekday columns
   // before the first operational day. This keeps a date under its real day.
   const leadingDays = (firstOperationalDate.getDay() + 6) % 7;
@@ -73,7 +73,7 @@ function renderCalendar() {
 
   for (let day = 1; day <= last.getDate(); day += 1) {
     const date = new Date(year, month, day);
-    if (date.getDay() === 0 || date.getDay() === 6) continue;
+    if (date.getDay() === 0 || date.getDay() === 5 || date.getDay() === 6) continue;
     const iso = `${selectedMonth}-${String(day).padStart(2, '0')}`;
     const details = monthDetails.filter(detail => detail.date === iso);
     // Treat a date as unavailable when either of its two detail records is

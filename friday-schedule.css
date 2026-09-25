@@ -1,0 +1,5 @@
+/* Flag detail is scheduled Monday through Thursday only. */
+.calendar { grid-template-columns: repeat(4, 1fr); }
+.cal-day:nth-child(4n) { border-right: 0; }
+@media (max-width: 1000px) { .calendar { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 720px) { .calendar { grid-template-columns: repeat(2, 1fr); } }
