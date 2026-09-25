@@ -150,6 +150,8 @@ async function monthlyShiftCounts(detailDate) {
 }
 
 let workloadReportKey = '';
+let monthlyWorkloadCadets = [];
+let monthlyWorkloadMonth = '';
 async function renderMonthlyWorkloadReport() {
   const panel = document.querySelector('#monthly-workload-report');
   const content = document.querySelector('#monthly-workload-content');
@@ -173,9 +175,39 @@ async function renderMonthlyWorkloadReport() {
   const counts = new Map((countsResult.data || []).map(item => [item.cadet_id, Number(item.shift_count) || 0]));
   const cadets = (profilesResult.data || []).map(cadet => ({ ...cadet, count: counts.get(cadet.id) || 0 }))
     .sort((left, right) => left.count - right.count || left.full_name.localeCompare(right.full_name));
+  monthlyWorkloadCadets = cadets;
+  monthlyWorkloadMonth = targetMonth.slice(0, 7);
   const zeroShiftCadets = cadets.filter(cadet => cadet.count === 0);
   const assignedCadets = cadets.length - zeroShiftCadets.length;
-  content.innerHTML = `<div class="workload-metrics"><div><strong>${cadets.length}</strong><span>Active cadets</span></div><div><strong>${assignedCadets}</strong><span>Cadets with a shift</span></div><div><strong>${zeroShiftCadets.length}</strong><span>Cadets with no shift</span></div></div><div class="zero-shift-list"><strong>Cadets with no ${escapeRosterText(new Date(`${targetMonth}T12:00`).toLocaleDateString('en-US', { month: 'long' }))} shifts</strong><p>${zeroShiftCadets.length ? zeroShiftCadets.map(cadet => `${escapeRosterText(cadet.full_name)} (${escapeRosterText(cadet.cadet_type || 'Cadet')})`).join(' · ') : 'Every active cadet has at least one shift.'}</p></div><table class="workload-table"><thead><tr><th>Cadet</th><th>Classification</th><th>Class level</th><th>Monthly shifts</th></tr></thead><tbody>${cadets.map(cadet => `<tr><td>${escapeRosterText(cadet.full_name)}</td><td>${escapeRosterText(cadet.cadet_type || 'Not set')}</td><td>${escapeRosterText(cadet.class_level || 'Not set')}</td><td><span class="workload-count ${cadet.count === 0 ? 'zero' : ''}">${cadet.count}</span></td></tr>`).join('')}</tbody></table>`;
+  const monthName = new Date(`${targetMonth}T12:00`).toLocaleDateString('en-US', { month: 'long' });
+  const cadetButton = cadet => `<button class="workload-cadet-button" data-workload-cadet="${cadet.id}" title="Choose ${escapeRosterText(cadet.full_name)} for an open shift">${escapeRosterText(cadet.full_name)} <b>(${cadet.count})</b></button>`;
+  content.innerHTML = `<div class="workload-metrics compact-workload-metrics"><div><strong>${cadets.length}</strong><span>Active</span></div><div><strong>${assignedCadets}</strong><span>Assigned</span></div><div><strong>${zeroShiftCadets.length}</strong><span>Need a shift</span></div></div><div class="zero-shift-list compact-zero-list"><strong>Needs placement in ${escapeRosterText(monthName)}</strong><div class="workload-cadet-chips">${zeroShiftCadets.length ? zeroShiftCadets.map(cadetButton).join('') : '<span class="muted">Every active cadet has a shift.</span>'}</div></div><details class="workload-details"><summary>View all cadet workload totals</summary><table class="workload-table"><thead><tr><th>Cadet</th><th>Classification</th><th>Class level</th><th>Monthly shifts</th></tr></thead><tbody>${cadets.map(cadet => `<tr><td><button class="workload-name-button" data-workload-cadet="${cadet.id}">${escapeRosterText(cadet.full_name)}</button></td><td>${escapeRosterText(cadet.cadet_type || 'Not set')}</td><td>${escapeRosterText(cadet.class_level || 'Not set')}</td><td><span class="workload-count ${cadet.count === 0 ? 'zero' : ''}">${cadet.count}</span></td></tr>`).join('')}</tbody></table></details>`;
+  content.querySelectorAll('[data-workload-cadet]').forEach(button => button.onclick = () => assignCadetFromWorkload(button.dataset.workloadCadet));
+}
+
+async function assignCadetFromWorkload(cadetId) {
+  if (window.det607CurrentProfile?.admin_level !== 'SUPER_ADMIN') return toast('Only the Super Admin can place cadets into a shift.');
+  const cadet = monthlyWorkloadCadets.find(item => item.id === cadetId);
+  if (!cadet) return toast('Cadet information is no longer available. Refresh and try again.');
+  const detailMonth = monthlyWorkloadMonth || scheduleMonthValue();
+  const compatibleDetails = data.details.filter(detail => detail.date.startsWith(detailMonth) && !detail.blocked && (cadet.cadet_type === 'POC' ? !detail.poc : detail.cadets.some(name => !name)));
+  if (!compatibleDetails.length) return toast(`There are no open ${cadet.cadet_type === 'POC' ? 'POC' : 'GMC'} positions for ${cadet.full_name} in this month.`);
+  modal(`<p class="eyebrow">QUICK PLACEMENT</p><h2>${escapeRosterText(cadet.full_name)}</h2><p>${escapeRosterText(cadet.cadet_type)} · ${cadet.count} shift${cadet.count === 1 ? '' : 's'} in this month. Choose an eligible open flag detail.</p><div class="form-row"><label>Open shift</label><select id="workload-placement-detail">${compatibleDetails.map(detail => `<option value="${detail.id}">${escapeRosterText(fmtDate(detail.date))} · ${escapeRosterText(detail.type)} · report ${escapeRosterText(detail.report)}</option>`).join('')}</select></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="save-workload-placement">Assign shift</button></div>`);
+  document.querySelector('#save-workload-placement').onclick = async () => {
+    const detailId = document.querySelector('#workload-placement-detail').value;
+    const detail = data.details.find(item => item.id === detailId);
+    const button = document.querySelector('#save-workload-placement');
+    button.disabled = true; button.textContent = 'Assigning…';
+    const { error } = await supabaseClient.rpc('super_admin_assign_detail', { target_detail_id: detailId, target_cadet_id: cadet.id });
+    if (error) { button.disabled = false; button.textContent = 'Assign shift'; return toast(error.message); }
+    try {
+      await deliverNotification({ recipientId: cadet.id, eventType: 'ADMIN_ASSIGNMENT', entityType: 'DETAIL', entityId: detailId, subject: `DET 607 Flag Detail assignment — ${detail.type}`, html: `<h2>DET 607 Flag Detail assignment</h2><p>You were assigned to <strong>${detail.type}</strong> on ${fmtDate(detail.date)}.</p><p>Report at ${detail.report}; ceremony at ${detail.time}.</p>` });
+    } catch (notificationError) { console.error('Assignment saved but notification failed.', notificationError); }
+    close();
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    await applySession(session);
+    toast(`${cadet.full_name} was assigned to the selected shift.`);
+  };
 }
 
 async function deliverNotification(payload) {
