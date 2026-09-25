@@ -20,12 +20,6 @@ Deno.serve(async request => {
 
     const url = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const secretKeyMap = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}") as Record<string, unknown>;
-    const serviceKey = Object.values(secretKeyMap).find(value => typeof value === "string" && value.length > 0) as string
-      || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
-      || "";
-    if (!serviceKey) return json({ error: "Notification service configuration is incomplete" }, 500);
-
     const userClient = createClient(url, anonKey, { global: { headers: { Authorization: token } } });
     const { data: { user }, error: userError } = await userClient.auth.getUser();
     if (userError || !user) return json({ error: "Invalid session" }, 401);
@@ -39,8 +33,10 @@ Deno.serve(async request => {
     const ownAssignmentConfirmation = recipientId === user.id && eventType === "ASSIGNMENT_CONFIRMATION";
     if (!caller?.active || (!staff && !ownAssignmentConfirmation)) return json({ error: "You do not have permission to send this notification" }, 403);
 
-    const adminClient = createClient(url, serviceKey);
-    const { data: recipient, error: recipientError } = await adminClient.from("profiles").select("email,active").eq("id", recipientId).single();
+    // The signed-in caller has RLS access to this profile only when they are
+    // authorized staff (or are the recipient themselves). This avoids relying
+    // on a project server key merely to retrieve the delivery address.
+    const { data: recipient, error: recipientError } = await userClient.from("profiles").select("email,active").eq("id", recipientId).single();
     if (recipientError) return json({ error: `Recipient lookup failed: ${recipientError.message}` }, 500);
     if (!recipient?.active || !recipient.email) return json({ error: "Recipient unavailable" }, 404);
 
@@ -58,7 +54,7 @@ Deno.serve(async request => {
       return json({ error: `Email provider rejected the request: ${providerError}` }, 502);
     }
 
-    const { error: outboxError } = await adminClient.from("notification_outbox").insert({ recipient_id: recipientId, event_type: eventType, entity_type: entityType, entity_id: entityId, delivered_at: new Date().toISOString() });
+    const { error: outboxError } = await userClient.from("notification_outbox").insert({ recipient_id: recipientId, event_type: eventType, entity_type: entityType, entity_id: entityId, delivered_at: new Date().toISOString() });
     if (outboxError) console.error("Notification email sent but outbox logging failed", outboxError.message);
     return json({ ok: true });
   } catch (error) {
