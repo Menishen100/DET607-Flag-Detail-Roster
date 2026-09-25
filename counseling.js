@@ -8,7 +8,14 @@
     return profile && (profile.cadet_type === 'POC' || ['ADMIN', 'SUPER_ADMIN'].includes(profile.admin_level));
   };
   const canReview = () => ['ADMIN', 'SUPER_ADMIN'].includes(state.profile?.admin_level);
-  const formatStatus = value => String(value || 'DRAFT').replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, letter => letter.toUpperCase());
+  const formatStatus = value => ({
+    AWAITING_CADET_SIGNATURE: 'Awaiting your signature',
+    SIGNED_AWAITING_REVIEW: 'Signed — awaiting review',
+    DISPUTED_AWAITING_REVIEW: 'Signed — disputed',
+    COMPLETED: 'Completed',
+    VOIDED: 'Voided',
+    DRAFT: 'Draft'
+  })[value] || String(value || 'DRAFT').replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, letter => letter.toUpperCase());
   const assignmentLabel = assignment => assignment ? `${assignment.detail_date} · ${assignment.detail_type === 'REVEILLE' ? 'Reveille' : 'Retreat'}` : 'Assignment unavailable';
   const assignmentFor = id => state.assignments.find(item => item.id === id);
   const cadetName = caseItem => assignmentFor(caseItem.assignment_id)?.profiles?.full_name || 'Cadet';
@@ -56,7 +63,7 @@
   async function loadAssignments() {
     const { data, error } = await window.det607Supabase
       .from('assignments')
-      .select('id,cadet_id,position,detail_id,profiles!assignments_cadet_id_fkey(full_name),details!assignments_detail_id_fkey(detail_date,detail_type)')
+      .select('id,cadet_id,position,detail_id,profiles!assignments_cadet_id_fkey(full_name,cadet_type),details!assignments_detail_id_fkey(detail_date,detail_type)')
       .is('removed_at', null)
       .order('assigned_at', { ascending: false });
     if (error) throw error;
@@ -118,7 +125,9 @@
 
   function newCaseForm() {
     if (!isStaff()) return showToast('Only POCs, admins, and super admins can initiate counseling.');
-    const options = state.assignments.map(assignment => `<option value="${assignment.id}">${escapeHtml(assignment.profiles?.full_name || 'Cadet')} — ${escapeHtml(assignmentLabel(assignment))}</option>`).join('');
+    const pocOnly = state.profile?.cadet_type === 'POC' && !['ADMIN', 'SUPER_ADMIN'].includes(state.profile?.admin_level);
+    const eligibleAssignments = pocOnly ? state.assignments.filter(assignment => assignment.profiles?.cadet_type === 'GMC') : state.assignments;
+    const options = eligibleAssignments.map(assignment => `<option value="${assignment.id}">${escapeHtml(assignment.profiles?.full_name || 'Cadet')} — ${escapeHtml(assignmentLabel(assignment))}</option>`).join('');
     if (!options) return showToast('There are no active assignments available for counseling.');
     openModal(`<p class="eyebrow">COUNSELING</p><h2>Initiate counseling</h2><p>Choose an actual flag-detail assignment. Start with objective facts; the cadet will be able to review and sign after you send it.</p><div class="form-row"><label>Assigned cadet and detail</label><select id="counseling-assignment">${options}</select></div><div class="form-row"><label>Reason</label><input id="counseling-reason" placeholder="e.g., Attendance accountability"></div><div class="form-row"><label>Objective facts</label><textarea id="counseling-facts" placeholder="What happened, when, and any follow-up already taken."></textarea></div><div class="form-row"><label>Expected standard</label><textarea id="counseling-standard" placeholder="Expected reporting, attendance, or accountability standard."></textarea></div><div class="form-row"><label>Corrective action</label><textarea id="counseling-action" placeholder="Required corrective action or follow-up."></textarea></div><div class="modal-actions"><button class="secondary" id="save-counseling-draft">Save draft</button><button class="primary" id="send-counseling">Send to cadet</button></div>`);
     $('#save-counseling-draft').onclick = () => saveNewCase(false);
@@ -129,6 +138,7 @@
     const assignment = assignmentFor($('#counseling-assignment').value);
     const facts = $('#counseling-facts').value.trim();
     if (!assignment || !facts) return showToast('Select an assignment and enter objective facts.');
+    if (state.profile?.cadet_type === 'POC' && !['ADMIN', 'SUPER_ADMIN'].includes(state.profile?.admin_level) && assignment.profiles?.cadet_type !== 'GMC') return showToast('POCs may initiate counseling only for GMC cadets.');
     const payload = {
       assignment_id: assignment.id, cadet_id: assignment.cadet_id, initiated_by: state.profile.id,
       counselor_id: state.profile.id, facts, reason: $('#counseling-reason').value.trim() || null,
@@ -164,7 +174,7 @@
     const canManageDraft = state.profile?.admin_level === 'SUPER_ADMIN' && item.status === 'DRAFT';
     const details = `<p class="eyebrow">${escapeHtml(formatStatus(item.status))}</p><h2>${escapeHtml(cadetName(item))}</h2><p><strong>Assignment:</strong> ${escapeHtml(assignmentLabel(assignment))}</p><p><strong>Reason:</strong> ${escapeHtml(item.reason || 'Not specified')}</p><p><strong>Facts:</strong><br>${escapeHtml(item.facts)}</p><p><strong>Expected standard:</strong><br>${escapeHtml(item.expected_standards || 'Not specified')}</p><p><strong>Corrective action:</strong><br>${escapeHtml(item.corrective_action || 'Not specified')}</p>`;
     if (canSign) {
-      openModal(`${details}<div class="form-row"><label>Your explanation</label><textarea id="cadet-explanation" placeholder="Explain what happened and any relevant context."></textarea></div><div class="form-row"><label>Dispute (optional)</label><textarea id="cadet-dispute" placeholder="State any part of the record you dispute."></textarea></div><div class="form-row"><label><input id="cadet-acknowledge" type="checkbox"> I acknowledge I reviewed this counseling record.</label></div><div class="form-row"><label>Type your full name</label><input id="cadet-signed-name" placeholder="Your full name"></div><div class="modal-actions"><button class="primary" id="sign-counseling">Sign and submit</button></div>`);
+      openModal(`${details}<div class="form-row"><label>Your explanation</label><textarea id="cadet-explanation" placeholder="Explain what happened and any relevant context."></textarea></div><div class="form-row"><label>Your response</label><label><input name="counseling-response" type="radio" value="ACCEPTED" checked> I accept this counseling record.</label><label><input name="counseling-response" type="radio" value="DISPUTED"> I dispute this counseling record.</label></div><div class="form-row"><label><input id="cadet-acknowledge" type="checkbox"> I acknowledge I reviewed this counseling record.</label></div><div class="form-row"><label>Type your full name</label><input id="cadet-signed-name" placeholder="Your full name"></div><div class="modal-actions"><button class="primary" id="sign-counseling">Sign and submit</button></div>`);
       $('#sign-counseling').onclick = () => signCase(item.id);
     } else if (review) {
       openModal(`${details}<p><strong>Cadet explanation:</strong><br>${escapeHtml(item.cadet_explanation || 'None submitted')}</p><p><strong>Dispute:</strong><br>${escapeHtml(item.cadet_dispute || 'None')}</p><div class="form-row"><label>Supervisor remarks</label><textarea id="supervisor-remarks" placeholder="Outcome or follow-up."></textarea></div><div class="modal-actions"><button class="secondary" id="void-counseling">Void record</button><button class="primary" id="complete-counseling">Complete review</button></div>`);
@@ -237,10 +247,11 @@
 
   async function signCase(id) {
     const explanation = $('#cadet-explanation').value.trim();
-    const dispute = $('#cadet-dispute').value.trim();
+    const response = document.querySelector('input[name="counseling-response"]:checked')?.value || 'ACCEPTED';
     const typedName = $('#cadet-signed-name').value.trim();
     if (!$('#cadet-acknowledge').checked || !explanation || !typedName) return showToast('Explanation, acknowledgment, and typed name are required.');
-    const { error } = await window.det607Supabase.rpc('sign_my_counseling', { case_id: id, explanation, dispute: dispute || null, typed_name: typedName });
+    const dispute = response === 'DISPUTED' ? 'Cadet disputes this counseling record.' : null;
+    const { error } = await window.det607Supabase.rpc('sign_my_counseling', { case_id: id, explanation, dispute, typed_name: typedName });
     if (error) return showToast(error.message);
     closeModal(); showToast('Counseling acknowledgment submitted for supervisor review.'); await loadCases();
   }
