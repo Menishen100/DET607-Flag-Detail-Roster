@@ -12,9 +12,9 @@
   const assignmentLabel = assignment => assignment ? `${assignment.detail_date} · ${assignment.detail_type === 'REVEILLE' ? 'Reveille' : 'Retreat'}` : 'Assignment unavailable';
   const assignmentFor = id => state.assignments.find(item => item.id === id);
   const cadetName = caseItem => assignmentFor(caseItem.assignment_id)?.profiles?.full_name || 'Cadet';
-  const counselingEmail = () => ({
+  const counselingEmail = caseItem => ({
     subject: 'DET 607 Counseling Awaiting Your Signature',
-    html: `<h2>Counseling awaiting your signature</h2><p>You have a counseling record that requires your attention and signature.</p><p>Please sign in to DET 607 Flag Detail Management to review and sign it.</p><p><a href="https://det607flagdetail.com">Review and sign counseling</a></p><p>This email does not include counseling details to protect your privacy.</p>`
+    html: `<h2>Counseling awaiting your signature</h2><p>You have a counseling record that requires your attention and signature.</p><p>Please sign in to DET 607 Flag Detail Management to review and sign it.</p><p><a href="https://det607flagdetail.com/?counseling=${encodeURIComponent(caseItem.id)}">Review and sign counseling</a></p><p>This email does not include counseling details to protect your privacy.</p>`
   });
   function showToast(message) { window.toast ? window.toast(message) : alert(message); }
   function openModal(html) { $('#modal-content').innerHTML = html; $('#modal').classList.add('show'); }
@@ -33,7 +33,7 @@
   }
 
   async function sendSignatureEmail(caseItem) {
-    const message = counselingEmail();
+    const message = counselingEmail(caseItem);
     const { data, error } = await window.det607Supabase.functions.invoke('send-notification', {
       body: {
         recipientId: caseItem.cadet_id,
@@ -81,7 +81,19 @@
     } finally {
       state.loading = false;
       renderCases();
+      openCounselingFromLink();
     }
+  }
+
+  function openCounselingFromLink() {
+    const params = new URLSearchParams(window.location.search);
+    const caseId = params.get('counseling');
+    if (!caseId || !state.cases.some(item => item.id === caseId)) return;
+    window.showView?.('counseling');
+    params.delete('counseling');
+    const query = params.toString();
+    window.history.replaceState({}, document.title, `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
+    openCase(caseId);
   }
 
   function renderCases() {
@@ -89,6 +101,9 @@
     if (!list || !state.profile) return;
     const count = $('#case-count');
     if (count) count.textContent = String(state.cases.length);
+    const pendingCount = state.cases.filter(item => ['AWAITING_CADET_SIGNATURE', 'SIGNED_AWAITING_REVIEW', 'DISPUTED_AWAITING_REVIEW'].includes(item.status)).length;
+    const dashboardReview = $('#review-number');
+    if (dashboardReview) dashboardReview.textContent = String(pendingCount);
     const newCase = $('#new-case');
     if (newCase) newCase.hidden = !isStaff();
     if (state.loading) { list.innerHTML = '<p class="muted">Loading counseling records…</p>'; return; }
