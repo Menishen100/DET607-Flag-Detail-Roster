@@ -70,7 +70,11 @@ function renderCalendar() {
     if (date.getDay() === 0 || date.getDay() === 6) continue;
     const iso = `${selectedMonth}-${String(day).padStart(2, '0')}`;
     const details = monthDetails.filter(detail => detail.date === iso);
-    const blocked = data.blocked[iso];
+    // Treat a date as unavailable when either of its two detail records is
+    // blocked. This deliberately does not rely only on the cached date map,
+    // so a block is reflected even while the calendar is refreshing.
+    const blockedDetail = details.find(detail => detail.blocked === true || detail.blocked === 'true' || detail.status === 'blocked');
+    const blocked = blockedDetail?.blockedReason || data.blocked[iso] || '';
     const detailCards = details.map(detail => {
       const remainingGmc = detail.cadets.filter(name => !name).length;
       const pocStatus = detail.poc ? 'POC assigned' : 'POC open';
@@ -256,7 +260,9 @@ async function loadLiveRoster(profile, email) {
     cadets: [...assignedCadets, ...Array(Math.max(0, 3 - assignedCadets.length)).fill('')],
     cadetIds: [...assignedCadetIds, ...Array(Math.max(0, 3 - assignedCadetIds.length)).fill('')],
     poc: detail.poc_name || '', pocId: detail.poc_id || '',
-    status: detail.blocked ? 'blocked' : 'open', blocked: detail.blocked, blockedReason: detail.blocked_reason
+    status: detail.blocked === true || detail.blocked === 'true' ? 'blocked' : 'open',
+    blocked: detail.blocked === true || detail.blocked === 'true',
+    blockedReason: detail.blocked_reason
   }});
   data = { details: mapped, blocked: Object.fromEntries(mapped.filter(d => d.blocked).map(d => [d.date, d.blockedReason || 'Unavailable'])), requests: [], attendance: [], cases: [] };
   const displayName = profile.full_name || 'Cadet';
