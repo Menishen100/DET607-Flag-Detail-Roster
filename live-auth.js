@@ -122,9 +122,16 @@ function renderCalendar() {
 // It contains only active vacancies; the full assignment list belongs on Monthly Schedule.
 function renderOpen() {
   const board = document.querySelector('#open-details');
-  const vacancies = data.details.filter(detail => !detail.blocked && openPositions(detail));
+  const selectedMonth = scheduleMonthValue();
+  const monthLabel = new Date(`${selectedMonth}-01T12:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const publishedForMonth = data.details.filter(detail => detail.date.startsWith(selectedMonth));
+  const vacancies = publishedForMonth.filter(detail => !detail.blocked && openPositions(detail));
+  if (!publishedForMonth.length) {
+    board.innerHTML = `<p class="muted">No published schedule exists for ${escapeRosterText(monthLabel)}.</p>`;
+    return;
+  }
   if (!vacancies.length) {
-    board.innerHTML = '<p class="muted">There are no open positions in the published schedule.</p>';
+    board.innerHTML = `<p class="muted">There are no open positions in the ${escapeRosterText(monthLabel)} schedule.</p>`;
     return;
   }
   board.innerHTML = vacancies.map(detail => {
@@ -435,8 +442,10 @@ function scheduleMonthValue() {
 }
 
 function syncScheduleMonthPicker() {
-  const picker = document.querySelector('#schedule-month');
-  if (picker) picker.value = scheduleMonthValue();
+  ['#schedule-month', '#open-month'].forEach(selector => {
+    const picker = document.querySelector(selector);
+    if (picker) picker.value = scheduleMonthValue();
+  });
 }
 
 function selectScheduleMonth(value) {
@@ -446,6 +455,7 @@ function selectScheduleMonth(value) {
   year = selected.getFullYear();
   month = selected.getMonth();
   renderCalendar();
+  renderOpen();
   syncScheduleMonthPicker();
 }
 
@@ -493,16 +503,19 @@ function publishCurrentMonth() {
 
 document.querySelector('#publish').onclick = publishCurrentMonth;
 document.querySelector('#schedule-month').onchange = event => selectScheduleMonth(event.target.value);
+document.querySelector('#open-month').onchange = event => selectScheduleMonth(event.target.value);
 document.querySelector('#previous-month').onclick = () => {
   month -= 1;
   if (month < 0) { month = 11; year -= 1; }
   renderCalendar();
+  renderOpen();
   syncScheduleMonthPicker();
 };
 document.querySelector('#next-month').onclick = () => {
   month += 1;
   if (month > 11) { month = 0; year += 1; }
   renderCalendar();
+  renderOpen();
   syncScheduleMonthPicker();
 };
 syncScheduleMonthPicker();
