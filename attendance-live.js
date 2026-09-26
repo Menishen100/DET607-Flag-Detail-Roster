@@ -27,7 +27,9 @@
       const checkInNote = row.self_checked_in_at
         ? `Checked in ${new Date(row.self_checked_in_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
         : 'No check-in yet';
-      const statusLabel = row.self_checked_in_at || row.status !== 'PENDING' ? displayStatus(row.status) : 'Not checked in';
+      const statusLabel = row.confirmed_at
+        ? `Confirmed: ${displayStatus(row.status)}`
+        : row.self_checked_in_at ? 'Awaiting confirmation' : 'Not checked in';
       const statusClass = row.self_checked_in_at || row.status !== 'PENDING' ? String(row.status).toLowerCase().replace('_','-') : 'not-checked-in';
       return `<article class="attendance-item"><strong>${escapeHtml(detailLabel(row))}</strong><span>${escapeHtml(row.cadet_name)}<br><small class="muted">${escapeHtml(row.cadet_type)} · ${escapeHtml(row.assignment_position === 'POC_LEAD' ? 'POC lead' : 'GMC')}</small></span><span>${escapeHtml(checkInNote)}</span><span class="status ${statusClass}">${escapeHtml(statusLabel)}</span>${action}</article>`;
     }).join('');

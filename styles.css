@@ -139,4 +139,4 @@
 
 /* Keep attendance actions usable on mobile instead of hiding the final grid cell. */
 .status.not-checked-in{background:#edf2f6;color:#627d98}
-@media(max-width:720px){.attendance-item>strong{grid-column:1/-1}.attendance-item>button{display:block;grid-column:1/-1;width:100%}}
+@media(max-width:720px){.attendance-item>strong{grid-column:1/-1}.attendance-item>.status{display:block}.attendance-item>button{display:block;grid-column:1/-1;width:100%}}
