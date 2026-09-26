@@ -30,7 +30,8 @@ begin
       actor.cadet_type='POC' and actor.admin_level='NONE' and p.cadet_type='GMC'
       and exists(select 1 from public.assignments lead where lead.detail_id=a.detail_id and lead.cadet_id=auth.uid() and lead.position='POC_LEAD' and lead.removed_at is null)
     )
-    or (actor.admin_level in ('ADMIN','SUPER_ADMIN') and p.cadet_type='POC')
+    -- Administrators can review and confirm every roster member, including themselves.
+    or actor.admin_level in ('ADMIN','SUPER_ADMIN')
   )
   order by d.detail_date desc,d.ceremony_time desc,p.full_name;
 end $$;
@@ -61,7 +62,9 @@ begin
   if not found then raise exception 'This assignment is no longer active'; end if;
   select * into subject from public.profiles where id=target.cadet_id and active;
   if actor.admin_level in ('ADMIN','SUPER_ADMIN') then
-    if subject.cadet_type <> 'POC' then raise exception 'Administrators confirm POC attendance only'; end if;
+    -- Admin and Super Admin access is unrestricted, including an assigned
+    -- POC administrator confirming their own record.
+    null;
   elsif actor.cadet_type='POC' and actor.admin_level='NONE' then
     if subject.cadet_type <> 'GMC' or not exists(select 1 from public.assignments lead where lead.detail_id=target.detail_id and lead.cadet_id=auth.uid() and lead.position='POC_LEAD' and lead.removed_at is null) then
       raise exception 'POC leads may confirm GMC attendance only for details they lead';

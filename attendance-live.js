@@ -12,13 +12,13 @@
   const toast = message => window.toast ? window.toast(message) : alert(message);
 
   function canConfirm(row) {
-    return (isPocLead() && row.cadet_type === 'GMC' && row.cadet_id !== profile.id) || (isAdmin() && row.cadet_type === 'POC' && row.cadet_id !== profile.id);
+    return isAdmin() || (isPocLead() && row.cadet_type === 'GMC' && row.cadet_id !== profile.id);
   }
   function render() {
     const list = $('#attendance-list');
     if (!list || !profile) return;
     const heading = document.querySelector('#attendance-description');
-    if (heading) heading.textContent = isAdmin() ? 'Confirm POC attendance. Cadets check in first; every final decision is recorded.' : isPocLead() ? 'Confirm GMC attendance for flag details you lead. Your own attendance is confirmed by an administrator.' : 'Check in for your own assigned flag detail. A POC lead will confirm the final attendance record.';
+    if (heading) heading.textContent = isAdmin() ? 'Confirm any attendance record, including your own. Cadets can check in first; every final decision is recorded.' : isPocLead() ? 'Confirm GMC attendance for flag details you lead. Your own attendance is confirmed by an administrator.' : 'Check in for your own assigned flag detail. A POC lead will confirm the final attendance record.';
     if (!rows.length) { list.innerHTML = '<p class="muted">No attendance records or review assignments are available.</p>'; return; }
     list.innerHTML = rows.map(row => {
       const own = row.cadet_id === profile.id;
