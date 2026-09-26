@@ -515,7 +515,7 @@ window.signup = async detailId => {
     const button = document.querySelector('#confirm-detail-claim');
     button.disabled = true; button.textContent = 'Confirming…';
     const { error } = await supabaseClient.rpc('claim_open_detail', { target_detail_id: detailId });
-    if (error) { button.disabled = false; button.textContent = 'Yes, confirm this shift'; return toast(error.message); }
+    if (error) { button.disabled = false; button.textContent = 'Yes, confirm this shift'; return toast(error.message.includes('assignments_detail_id_cadet_id_key') ? 'This shift was previously removed. Refresh once and select it again.' : error.message); }
     try { await sendOwnAssignmentEmail(profile, detail); }
     catch (notificationError) { toast(`Shift confirmed, but the email could not be sent: ${notificationError.message}`); }
     close();
