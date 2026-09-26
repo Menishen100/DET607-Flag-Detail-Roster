@@ -10,6 +10,7 @@
   const displayStatus = value => ({ PENDING: 'Pending confirmation', ATTENDED: 'Attended', LATE: 'Late', NO_SHOW: 'No show', EXCUSED: 'Excused' })[value] || value;
   const detailLabel = row => `${new Date(`${row.detail_date}T12:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${row.detail_type === 'REVEILLE' ? 'Reveille' : 'Retreat'}`;
   const toast = message => window.toast ? window.toast(message) : alert(message);
+  const isFutureDetail = row => new Date(`${row.detail_date}T12:00`).setHours(0, 0, 0, 0) > new Date().setHours(0, 0, 0, 0);
 
   function canConfirm(row) {
     return isAdmin() || (isPocLead() && row.cadet_type === 'GMC' && row.cadet_id !== profile.id);
@@ -23,11 +24,13 @@
     list.innerHTML = rows.map(row => {
       const own = row.cadet_id === profile.id;
       const canCheckIn = own && row.status === 'PENDING' && !row.self_checked_in_at;
-      const action = canConfirm(row) ? `<button class="secondary" data-confirm-attendance="${row.assignment_id}">Confirm</button>` : canCheckIn ? `<button class="primary" data-check-in="${row.assignment_id}">Check in</button>` : '';
+      const action = canConfirm(row) && !isFutureDetail(row) ? `<button class="secondary" data-confirm-attendance="${row.assignment_id}">Confirm</button>` : canCheckIn ? `<button class="primary" data-check-in="${row.assignment_id}">Check in</button>` : '';
       const checkInNote = row.self_checked_in_at
         ? `Checked in ${new Date(row.self_checked_in_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
         : 'No check-in yet';
-      const statusLabel = row.confirmed_at
+      const statusLabel = isFutureDetail(row) && !row.confirmed_at
+        ? 'Scheduled — not confirmable yet'
+        : row.confirmed_at
         ? `Confirmed: ${displayStatus(row.status)}`
         : row.self_checked_in_at ? 'Awaiting confirmation' : 'Not checked in';
       const statusClass = row.self_checked_in_at || row.status !== 'PENDING' ? String(row.status).toLowerCase().replace('_','-') : 'not-checked-in';

@@ -57,6 +57,9 @@ begin
   select * into actor from public.profiles where id=auth.uid() and active;
   select * into target from public.assignments where id=target_assignment_id and removed_at is null;
   if not found then raise exception 'This assignment is no longer active'; end if;
+  if (select detail_date from public.details where id=target.detail_id) > current_date then
+    raise exception 'Attendance cannot be confirmed before the scheduled flag-detail date';
+  end if;
   select * into subject from public.profiles where id=target.cadet_id and active;
   if actor.admin_level in ('ADMIN','SUPER_ADMIN') then
     -- Admin and Super Admin access is unrestricted, including an assigned
