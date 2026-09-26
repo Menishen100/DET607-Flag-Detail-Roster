@@ -44,9 +44,6 @@ begin
   if not found then raise exception 'This assignment is not available for check-in'; end if;
   select * into detail_row from public.details where id=target.detail_id and not blocked;
   if not found then raise exception 'This flag detail is unavailable'; end if;
-  if now() < (detail_row.detail_date + detail_row.report_time - interval '15 minutes') or now() > (detail_row.detail_date + detail_row.report_time + interval '30 minutes') then
-    raise exception 'Check-in is available from 15 minutes before report time through 30 minutes after report time';
-  end if;
   insert into public.attendance(assignment_id,status,clocked_at,self_checked_in_at,updated_at)
   values(target_assignment_id,'PENDING',now(),now(),now())
   on conflict (assignment_id) do update set status='PENDING',clocked_at=now(),self_checked_in_at=now(),updated_at=now()

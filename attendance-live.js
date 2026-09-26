@@ -11,14 +11,6 @@
   const detailLabel = row => `${new Date(`${row.detail_date}T12:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${row.detail_type === 'REVEILLE' ? 'Reveille' : 'Retreat'}`;
   const toast = message => window.toast ? window.toast(message) : alert(message);
 
-  function checkInWindow(row) {
-    const reportAt = new Date(`${row.detail_date}T${row.report_time}`);
-    const opensAt = new Date(reportAt.getTime() - 15 * 60 * 1000);
-    const closesAt = new Date(reportAt.getTime() + 30 * 60 * 1000);
-    const now = new Date();
-    return { open: now >= opensAt && now <= closesAt, before: now < opensAt, opensAt };
-  }
-
   function canConfirm(row) {
     return isAdmin() || (isPocLead() && row.cadet_type === 'GMC' && row.cadet_id !== profile.id);
   }
@@ -30,12 +22,11 @@
     if (!rows.length) { list.innerHTML = '<p class="muted">No attendance records or review assignments are available.</p>'; return; }
     list.innerHTML = rows.map(row => {
       const own = row.cadet_id === profile.id;
-      const window = checkInWindow(row);
-      const canCheckIn = own && row.status === 'PENDING' && !row.self_checked_in_at && window.open;
+      const canCheckIn = own && row.status === 'PENDING' && !row.self_checked_in_at;
       const action = canConfirm(row) ? `<button class="secondary" data-confirm-attendance="${row.assignment_id}">Confirm</button>` : canCheckIn ? `<button class="primary" data-check-in="${row.assignment_id}">Check in</button>` : '';
       const checkInNote = row.self_checked_in_at
         ? `Checked in ${new Date(row.self_checked_in_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
-        : own && window.before ? `Check-in opens ${window.opensAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : 'No check-in yet';
+        : 'No check-in yet';
       const statusLabel = row.self_checked_in_at || row.status !== 'PENDING' ? displayStatus(row.status) : 'Not checked in';
       const statusClass = row.self_checked_in_at || row.status !== 'PENDING' ? String(row.status).toLowerCase().replace('_','-') : 'not-checked-in';
       return `<article class="attendance-item"><strong>${escapeHtml(detailLabel(row))}</strong><span>${escapeHtml(row.cadet_name)}<br><small class="muted">${escapeHtml(row.cadet_type)} · ${escapeHtml(row.assignment_position === 'POC_LEAD' ? 'POC lead' : 'GMC')}</small></span><span>${escapeHtml(checkInNote)}</span><span class="status ${statusClass}">${escapeHtml(statusLabel)}</span>${action}</article>`;
