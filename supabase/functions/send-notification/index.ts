@@ -28,10 +28,10 @@ Deno.serve(async request => {
     if (callerError) return json({ error: `Roster lookup failed: ${callerError.message}` }, 500);
     const staff = caller?.cadet_type === "POC" || ["ADMIN", "SUPER_ADMIN"].includes(caller?.admin_level || "");
 
-    const { recipientId, subject, html, eventType, entityType, entityId } = await request.json();
+    const { recipientId, subject, html, eventType, entityType, entityId, scheduledAt } = await request.json();
     if (!recipientId || !subject || !html || !eventType || !entityType || !entityId) return json({ error: "Missing notification fields" }, 400);
-    const ownAssignmentConfirmation = recipientId === user.id && eventType === "ASSIGNMENT_CONFIRMATION";
-    if (!caller?.active || (!staff && !ownAssignmentConfirmation)) return json({ error: "You do not have permission to send this notification" }, 403);
+    const ownAssignmentEmail = recipientId === user.id && ["ASSIGNMENT_CONFIRMATION", "DETAIL_REMINDER"].includes(eventType);
+    if (!caller?.active || (!staff && !ownAssignmentEmail)) return json({ error: "You do not have permission to send this notification" }, 403);
 
     // The signed-in caller has RLS access to this profile only when they are
     // authorized staff (or are the recipient themselves). This avoids relying
@@ -40,13 +40,22 @@ Deno.serve(async request => {
     if (recipientError) return json({ error: `Recipient lookup failed: ${recipientError.message}` }, 500);
     if (!recipient?.active || !recipient.email) return json({ error: "Recipient unavailable" }, 404);
 
+    let scheduledFor: string | null = null;
+    if (scheduledAt) {
+      const requestedTime = new Date(String(scheduledAt));
+      const now = new Date();
+      if (Number.isNaN(requestedTime.getTime()) || requestedTime <= now) return json({ error: "A reminder must be scheduled in the future" }, 400);
+      if (requestedTime.getTime() - now.getTime() > 30 * 24 * 60 * 60 * 1000) return json({ error: "Reminders can be scheduled up to 30 days ahead" }, 400);
+      scheduledFor = requestedTime.toISOString();
+    }
+
     const resendKey = Deno.env.get("RESEND_API_KEY");
     if (!resendKey) return json({ error: "Email provider is not configured" }, 500);
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
       signal: AbortSignal.timeout(10_000),
-      body: JSON.stringify({ from: "DET 607 Flag Detail <noreply@mail.det607flagdetail.com>", to: [recipient.email], subject, html }),
+      body: JSON.stringify({ from: "DET 607 Flag Detail <noreply@mail.det607flagdetail.com>", to: [recipient.email], subject, html, ...(scheduledFor ? { scheduled_at: scheduledFor } : {}) }),
     });
     if (!response.ok) {
       const providerError = (await response.text()).slice(0, 300);
@@ -54,7 +63,8 @@ Deno.serve(async request => {
       return json({ error: `Email provider rejected the request: ${providerError}` }, 502);
     }
 
-    const { error: outboxError } = await userClient.from("notification_outbox").insert({ recipient_id: recipientId, event_type: eventType, entity_type: entityType, entity_id: entityId, delivered_at: new Date().toISOString() });
+    const now = new Date().toISOString();
+    const { error: outboxError } = await userClient.from("notification_outbox").insert({ recipient_id: recipientId, event_type: eventType, entity_type: entityType, entity_id: entityId, scheduled_for: scheduledFor || now, delivered_at: scheduledFor ? null : now });
     if (outboxError) console.error("Notification email sent but outbox logging failed", outboxError.message);
     return json({ ok: true });
   } catch (error) {
