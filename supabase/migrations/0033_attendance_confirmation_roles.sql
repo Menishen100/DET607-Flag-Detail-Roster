@@ -9,7 +9,7 @@ create or replace function public.get_my_attendance_roster()
 returns table(
   assignment_id uuid, detail_date date, detail_type public.detail_type,
   report_time time, ceremony_time time, cadet_id uuid, cadet_name text,
-  cadet_type public.cadet_type, position text, status public.attendance_status,
+  cadet_type public.cadet_type, assignment_position text, status public.attendance_status,
   self_checked_in_at timestamptz, confirmed_at timestamptz, note text
 )
 language plpgsql security definer set search_path=public as $$
