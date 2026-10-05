@@ -71,7 +71,7 @@ begin
 end $$;
 
 create or replace function public.get_my_coverage_eligible_assignments()
-returns table(assignment_id uuid, detail_date date, detail_type text, report_time time, ceremony_time time, position text)
+returns table(assignment_id uuid, detail_date date, detail_type text, report_time time, ceremony_time time, assignment_position text)
 language sql stable security definer set search_path=public as $$
   select a.id, d.detail_date, d.detail_type::text, d.report_time, d.ceremony_time, a.position
   from public.assignments a
@@ -124,7 +124,7 @@ begin
   if not found then raise exception 'This coverage request is no longer available'; end if;
   if request_row.requester_id=actor.id then raise exception 'You cannot accept your own coverage request'; end if;
   select * into requester from public.profiles where id=request_row.requester_id and active;
-  if requester.cadet_type<>actor.cadet_type then raise exception 'Only an eligible ' || requester.cadet_type::text || ' may accept this request'; end if;
+  if requester.cadet_type<>actor.cadet_type then raise exception 'Only a cadet with the matching classification may accept this request'; end if;
   select * into source from public.assignments where id=request_row.source_assignment_id and removed_at is null for update;
   if not found then raise exception 'The original assignment is no longer available'; end if;
   select * into detail_row from public.details where id=source.detail_id and not blocked;
@@ -173,7 +173,7 @@ begin
   select * into candidate from public.profiles where id=target_cadet_id and active;
   select * into detail_row from public.details where id=source.detail_id and not blocked;
   if not found or detail_row.detail_date<current_date then raise exception 'This detail is unavailable for placement'; end if;
-  if candidate.cadet_type<>requester.cadet_type then raise exception 'Select an eligible ' || requester.cadet_type::text || ' for this coverage'; end if;
+  if candidate.cadet_type<>requester.cadet_type then raise exception 'Select a cadet with the matching classification for this coverage'; end if;
   if candidate.id=requester.id then raise exception 'The requester cannot cover their own assignment'; end if;
   if exists(select 1 from public.assignments a join public.details d on d.id=a.detail_id where a.cadet_id=candidate.id and a.removed_at is null and d.detail_date=detail_row.detail_date) then raise exception 'That cadet already has a flag-detail assignment on this day'; end if;
   update public.assignments set removed_at=now() where id=source.id;
