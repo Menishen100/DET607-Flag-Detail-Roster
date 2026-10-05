@@ -14,6 +14,10 @@
     const { data: { session } } = await window.det607Supabase.auth.getSession();
     if (session && typeof applySession === 'function') await applySession(session);
   };
+  const notifyRequest = async (requestId, action) => {
+    const { error } = await window.det607Supabase.functions.invoke('request-notification', { body: { requestId, action } });
+    if (error) console.error('Request email notification failed:', error.message);
+  };
 
   function requestCard(request, action) {
     const accepted = request.accepted_by_name ? `<p class="muted"><strong>Coverage:</strong> ${text(request.accepted_by_name)}${request.status === 'APPROVED' ? ' (assigned by an administrator)' : ''}</p>` : '';
@@ -77,9 +81,9 @@
       const reason = byId('#coverage-reason').value.trim();
       if (!reason) return toast('Enter a brief coverage reason.');
       button.disabled = true; button.textContent = 'Posting…';
-      const { error: createError } = await window.det607Supabase.rpc('create_coverage_request', { target_assignment_id: byId('#coverage-assignment').value, request_reason: reason });
+      const { data: requestId, error: createError } = await window.det607Supabase.rpc('create_coverage_request', { target_assignment_id: byId('#coverage-assignment').value, request_reason: reason });
       if (createError) { button.disabled = false; button.textContent = 'Post request'; return toast(createError.message); }
-      close(); await loadCoverageRequests(); toast('Coverage request posted for eligible cadets.');
+      await notifyRequest(requestId, 'CREATED'); close(); await loadCoverageRequests(); toast('Coverage request posted and eligible cadets were emailed.');
     };
   }
 
@@ -89,10 +93,10 @@
     if (!assignments?.length) return toast('You have no current or future assignment that is eligible for a swap request.');
     const options = assignments.map(item => `<option value="${item.assignment_id}">${text(dateLabel(item.detail_date))} — ${text(kind(item.detail_type))} (${text(time(item.ceremony_time))})</option>`).join('');
     modal(`<p class="eyebrow">SHIFT SWAP</p><h2>Offer a shift swap</h2><p class="muted">Only active ${text(state.profile.cadet_type)} cadets can see this request. A volunteer must offer one of their own eligible shifts; both assignments exchange at the same time.</p><div class="form-row"><label>Your shift to offer</label><select id="swap-assignment">${options}</select></div><div class="form-row"><label>Reason</label><textarea id="swap-reason" rows="4" maxlength="500" placeholder="Briefly explain why you want to swap." required></textarea></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="save-swap-request">Post swap</button></div>`);
-    byId('#save-swap-request').onclick = async () => { const reason = byId('#swap-reason').value.trim(); if (!reason) return toast('Enter a brief swap reason.'); const button = byId('#save-swap-request'); button.disabled=true; button.textContent='Posting…'; const { error: createError } = await window.det607Supabase.rpc('create_swap_request',{target_assignment_id:byId('#swap-assignment').value,request_reason:reason}); if (createError) { button.disabled=false;button.textContent='Post swap';return toast(createError.message); } close(); await loadCoverageRequests(); toast('Swap request posted for eligible cadets.'); };
+    byId('#save-swap-request').onclick = async () => { const reason = byId('#swap-reason').value.trim(); if (!reason) return toast('Enter a brief swap reason.'); const button = byId('#save-swap-request'); button.disabled=true; button.textContent='Posting…'; const { data: requestId, error: createError } = await window.det607Supabase.rpc('create_swap_request',{target_assignment_id:byId('#swap-assignment').value,request_reason:reason}); if (createError) { button.disabled=false;button.textContent='Post swap';return toast(createError.message); } await notifyRequest(requestId,'CREATED'); close(); await loadCoverageRequests(); toast('Swap request posted and eligible cadets were emailed.'); };
   }
 
-  async function openSwapOffer(id) { const { data: assignments, error } = await window.det607Supabase.rpc('get_my_swap_offer_assignments',{target_request_id:id}); if(error)return toast(error.message); if(!assignments?.length)return toast('You have no eligible shift available to exchange.'); const options=assignments.map(item=>`<option value="${item.assignment_id}">${text(dateLabel(item.detail_date))} — ${text(kind(item.detail_type))}</option>`).join(''); modal(`<p class="eyebrow">CONFIRM SHIFT SWAP</p><h2>Offer your shift</h2><p>Select the assignment you will exchange. Both rosters update only after confirmation.</p><div class="form-row"><label>Your shift</label><select id="swap-offer-assignment">${options}</select></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="confirm-swap">Confirm swap</button></div>`);byId('#confirm-swap').onclick=async()=>{const button=byId('#confirm-swap');button.disabled=true;button.textContent='Swapping…';const {error:swapError}=await window.det607Supabase.rpc('accept_swap_request',{target_request_id:id,offered_assignment_id:byId('#swap-offer-assignment').value});if(swapError){button.disabled=false;button.textContent='Confirm swap';return toast(swapError.message);}close();await refreshSession();toast('Swap confirmed. Both rosters are updated.');}; }
+  async function openSwapOffer(id) { const { data: assignments, error } = await window.det607Supabase.rpc('get_my_swap_offer_assignments',{target_request_id:id}); if(error)return toast(error.message); if(!assignments?.length)return toast('You have no eligible shift available to exchange.'); const options=assignments.map(item=>`<option value="${item.assignment_id}">${text(dateLabel(item.detail_date))} — ${text(kind(item.detail_type))}</option>`).join(''); modal(`<p class="eyebrow">CONFIRM SHIFT SWAP</p><h2>Offer your shift</h2><p>Select the assignment you will exchange. Both rosters update only after confirmation.</p><div class="form-row"><label>Your shift</label><select id="swap-offer-assignment">${options}</select></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="confirm-swap">Confirm swap</button></div>`);byId('#confirm-swap').onclick=async()=>{const button=byId('#confirm-swap');button.disabled=true;button.textContent='Swapping…';const {error:swapError}=await window.det607Supabase.rpc('accept_swap_request',{target_request_id:id,offered_assignment_id:byId('#swap-offer-assignment').value});if(swapError){button.disabled=false;button.textContent='Confirm swap';return toast(swapError.message);}await notifyRequest(id,'RESOLVED');close();await refreshSession();toast('Swap confirmed. Both rosters are updated and both cadets were emailed.');}; }
   async function cancelSwap(id) { const { error } = await window.det607Supabase.rpc('cancel_swap_request',{target_request_id:id}); if(error)return toast(error.message);await loadCoverageRequests();toast('Swap request cancelled.'); }
 
   async function cancelRequest(id) {
@@ -109,7 +113,7 @@
       const button = byId('#confirm-coverage-accept'); button.disabled = true; button.textContent = 'Accepting…';
       const { error } = await window.det607Supabase.rpc('accept_coverage_request', { target_request_id: id });
       if (error) { button.disabled = false; button.textContent = 'Accept coverage'; return toast(error.message); }
-      close(); await refreshSession(); toast('Coverage accepted. The roster is updated.');
+      await notifyRequest(id, 'RESOLVED'); close(); await refreshSession(); toast('Coverage accepted. The roster is updated and both cadets were emailed.');
     };
   }
 
@@ -125,7 +129,7 @@
       const button = byId('#save-coverage-admin'); button.disabled = true; button.textContent = 'Assigning…';
       const { error: assignError } = await window.det607Supabase.rpc('admin_assign_coverage_request', { target_request_id: id, target_cadet_id: byId('#coverage-admin-cadet').value, new_admin_note: byId('#coverage-admin-note').value.trim() || null });
       if (assignError) { button.disabled = false; button.textContent = 'Assign coverage'; return toast(assignError.message); }
-      close(); await refreshSession(); toast('Coverage assigned and the roster is updated.');
+      await notifyRequest(id, 'RESOLVED'); close(); await refreshSession(); toast('Coverage assigned, the roster is updated, and both cadets were emailed.');
     };
   }
 
