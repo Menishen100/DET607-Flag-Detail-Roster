@@ -2,7 +2,7 @@
 // POC queues never expose each other's openings and same-day conflicts cannot
 // be accepted even if two people click at once.
 (() => {
-  const state = { profile: null, requests: [] };
+  const state = { profile: null, requests: [], swaps: [] };
   const byId = id => document.querySelector(id);
   const isAdmin = () => ['ADMIN', 'SUPER_ADMIN'].includes(state.profile?.admin_level);
   const text = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
@@ -30,21 +30,29 @@
     const mineHtml = mine.map(item => requestCard(item, item.status === 'OPEN' ? `<button class="secondary" data-coverage-cancel="${item.id}">Cancel request</button>` : '')).join('');
     const availableHtml = available.map(item => requestCard(item, `<button class="primary" data-coverage-accept="${item.id}">Accept coverage</button>`)).join('');
     const adminHtml = adminQueue.map(item => requestCard(item, `<button class="secondary" data-coverage-admin="${item.id}">Assign coverage</button>`)).join('');
-    host.innerHTML = section('My requests', mineHtml, 'You have no coverage requests.') + section(`Available ${state.profile?.cadet_type || 'cadet'} coverage`, availableHtml, 'No eligible coverage requests are open.') + (isAdmin() ? section('Administrator review queue', adminHtml, 'No coverage requests need placement.') : '');
+    const mySwaps = state.swaps.filter(item => item.requester_id === currentId);
+    const swapOffers = state.swaps.filter(item => item.requester_id !== currentId && item.can_accept);
+    const swapCard = (item, action) => `<article class="request-card coverage-request-card"><div class="date-pill">SWAP<small>${text(item.status.replace('_', ' '))}</small></div><div class="card-main"><h3>${text(item.requester_name)} · ${text(dateLabel(item.detail_date))}</h3><p>Offering ${text(kind(item.detail_type))} · ${text(dateLabel(item.detail_date))}. Select one of your own ${text(item.requester_type)} shifts to exchange.</p><p>“${text(item.reason)}”</p></div><div class="card-actions">${action || ''}</div></article>`;
+    const mySwapHtml = mySwaps.map(item => swapCard(item, item.status === 'OPEN' ? `<button class="secondary" data-swap-cancel="${item.id}">Cancel swap</button>` : '')).join('');
+    const swapOfferHtml = swapOffers.map(item => swapCard(item, `<button class="primary" data-swap-accept="${item.id}">Offer a swap</button>`)).join('');
+    host.innerHTML = section('My coverage requests', mineHtml, 'You have no coverage requests.') + section(`Available ${state.profile?.cadet_type || 'cadet'} coverage`, availableHtml, 'No eligible coverage requests are open.') + section('My swap requests', mySwapHtml, 'You have no open swap requests.') + section(`Available ${state.profile?.cadet_type || 'cadet'} swaps`, swapOfferHtml, 'No eligible swap requests are open.') + (isAdmin() ? section('Administrator coverage queue', adminHtml, 'No coverage requests need placement.') : '');
     host.querySelectorAll('[data-coverage-cancel]').forEach(button => button.onclick = () => cancelRequest(button.dataset.coverageCancel));
     host.querySelectorAll('[data-coverage-accept]').forEach(button => button.onclick = () => confirmAccept(button.dataset.coverageAccept));
     host.querySelectorAll('[data-coverage-admin]').forEach(button => button.onclick = () => openAdminAssignment(button.dataset.coverageAdmin));
+    host.querySelectorAll('[data-swap-cancel]').forEach(button => button.onclick = () => cancelSwap(button.dataset.swapCancel));
+    host.querySelectorAll('[data-swap-accept]').forEach(button => button.onclick = () => openSwapOffer(button.dataset.swapAccept));
   }
 
   async function loadCoverageRequests(profile = window.det607CurrentProfile) {
     if (!profile || !window.det607Supabase) return;
     state.profile = profile;
-    const { data, error } = await window.det607Supabase.rpc('get_coverage_requests');
-    if (error) { console.error('Coverage requests could not load:', error.message); return; }
-    state.requests = data || [];
+    const [coverageResult, swapResult] = await Promise.all([window.det607Supabase.rpc('get_coverage_requests'), window.det607Supabase.rpc('get_swap_requests')]);
+    if (coverageResult.error || swapResult.error) { console.error('Requests could not load:', coverageResult.error?.message || swapResult.error?.message); return; }
+    state.requests = coverageResult.data || [];
+    state.swaps = swapResult.data || [];
     window.det607CoverageRequests = state.requests;
     const badge = byId('#request-count');
-    if (badge) badge.textContent = String(isAdmin() ? state.requests.filter(item => item.status === 'OPEN').length : state.requests.filter(item => item.can_accept).length);
+    if (badge) badge.textContent = String((isAdmin() ? state.requests.filter(item => item.status === 'OPEN').length : state.requests.filter(item => item.can_accept).length) + state.swaps.filter(item => item.can_accept).length);
     renderCoverageRequests();
   }
 
@@ -64,6 +72,18 @@
       close(); await loadCoverageRequests(); toast('Coverage request posted for eligible cadets.');
     };
   }
+
+  async function openSwapRequest() {
+    const { data: assignments, error } = await window.det607Supabase.rpc('get_my_swap_eligible_assignments');
+    if (error) return toast(error.message);
+    if (!assignments?.length) return toast('You have no current or future assignment that is eligible for a swap request.');
+    const options = assignments.map(item => `<option value="${item.assignment_id}">${text(dateLabel(item.detail_date))} — ${text(kind(item.detail_type))} (${text(time(item.ceremony_time))})</option>`).join('');
+    modal(`<p class="eyebrow">SHIFT SWAP</p><h2>Offer a shift swap</h2><p class="muted">Only active ${text(state.profile.cadet_type)} cadets can see this request. A volunteer must offer one of their own eligible shifts; both assignments exchange at the same time.</p><div class="form-row"><label>Your shift to offer</label><select id="swap-assignment">${options}</select></div><div class="form-row"><label>Reason</label><textarea id="swap-reason" rows="4" maxlength="500" placeholder="Briefly explain why you want to swap." required></textarea></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="save-swap-request">Post swap</button></div>`);
+    byId('#save-swap-request').onclick = async () => { const reason = byId('#swap-reason').value.trim(); if (!reason) return toast('Enter a brief swap reason.'); const button = byId('#save-swap-request'); button.disabled=true; button.textContent='Posting…'; const { error: createError } = await window.det607Supabase.rpc('create_swap_request',{target_assignment_id:byId('#swap-assignment').value,request_reason:reason}); if (createError) { button.disabled=false;button.textContent='Post swap';return toast(createError.message); } close(); await loadCoverageRequests(); toast('Swap request posted for eligible cadets.'); };
+  }
+
+  async function openSwapOffer(id) { const { data: assignments, error } = await window.det607Supabase.rpc('get_my_swap_offer_assignments',{target_request_id:id}); if(error)return toast(error.message); if(!assignments?.length)return toast('You have no eligible shift available to exchange.'); const options=assignments.map(item=>`<option value="${item.assignment_id}">${text(dateLabel(item.detail_date))} — ${text(kind(item.detail_type))}</option>`).join(''); modal(`<p class="eyebrow">CONFIRM SHIFT SWAP</p><h2>Offer your shift</h2><p>Select the assignment you will exchange. Both rosters update only after confirmation.</p><div class="form-row"><label>Your shift</label><select id="swap-offer-assignment">${options}</select></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="confirm-swap">Confirm swap</button></div>`);byId('#confirm-swap').onclick=async()=>{const button=byId('#confirm-swap');button.disabled=true;button.textContent='Swapping…';const {error:swapError}=await window.det607Supabase.rpc('accept_swap_request',{target_request_id:id,offered_assignment_id:byId('#swap-offer-assignment').value});if(swapError){button.disabled=false;button.textContent='Confirm swap';return toast(swapError.message);}close();await refreshSession();toast('Swap confirmed. Both rosters are updated.');}; }
+  async function cancelSwap(id) { const { error } = await window.det607Supabase.rpc('cancel_swap_request',{target_request_id:id}); if(error)return toast(error.message);await loadCoverageRequests();toast('Swap request cancelled.'); }
 
   async function cancelRequest(id) {
     const { error } = await window.det607Supabase.rpc('cancel_coverage_request', { target_request_id: id });
@@ -102,6 +122,7 @@
   window.loadCoverageRequests = loadCoverageRequests;
   window.openCoverageRequest = openNewRequest;
   document.addEventListener('det607:profile', event => loadCoverageRequests(event.detail.profile));
-  byId('#new-coverage-request')?.addEventListener('click', openNewRequest);
+  byId('#new-coverage-request')?.addEventListener('click', () => modal(`<p class="eyebrow">REQUEST TYPE</p><h2>Coverage or swap?</h2><p class="muted">Coverage gives your shift to another eligible cadet. A swap exchanges your shift with another eligible cadet’s shift.</p><div class="modal-actions"><button class="secondary" id="choose-coverage">Request coverage</button><button class="primary" id="choose-swap">Offer a swap</button></div>`), { once:false });
+  byId('#new-coverage-request')?.addEventListener('click', () => { byId('#choose-coverage').onclick=openNewRequest; byId('#choose-swap').onclick=openSwapRequest; });
   if (window.det607CurrentProfile) loadCoverageRequests(window.det607CurrentProfile);
 })();
