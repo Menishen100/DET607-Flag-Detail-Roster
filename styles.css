@@ -145,3 +145,6 @@
 .brand{padding-bottom:28px}
 .brand-logo{width:46px;height:46px;object-fit:contain;flex:0 0 auto}
 .auth-card .brand-logo{width:58px;height:58px}
+
+/* Coverage requests are grouped by what the current account can safely act on. */
+.coverage-section{margin:0 0 22px}.coverage-section>h3{margin:0 0 10px;font-size:15px}.coverage-request-card{align-items:center}.coverage-request-card .card-main p{margin:4px 0}.coverage-request-card .card-actions{min-width:140px}.coverage-request-card .card-actions button{width:100%}@media(max-width:720px){.coverage-request-card .card-actions{width:100%}}

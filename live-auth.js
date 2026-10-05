@@ -426,7 +426,7 @@ async function loadLiveRoster(profile, email) {
   const visibleMonth = selectedMonthExists
     ? new Date(`${selectedMonthKey}-01T12:00`)
     : (mapped[0]?.date ? new Date(mapped[0].date + 'T12:00') : new Date());
-  month = visibleMonth.getMonth(); year = visibleMonth.getFullYear(); render(); setPortalToday(); syncScheduleMonthPicker();
+  month = visibleMonth.getMonth(); year = visibleMonth.getFullYear(); render(); setPortalToday(); syncScheduleMonthPicker(); await window.loadCoverageRequests?.(profile);
 }
 
 async function applySession(session) {
