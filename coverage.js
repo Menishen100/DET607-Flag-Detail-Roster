@@ -5,6 +5,7 @@
   const state = { profile: null, requests: [], swaps: [] };
   const byId = id => document.querySelector(id);
   const isAdmin = () => ['ADMIN', 'SUPER_ADMIN'].includes(state.profile?.admin_level);
+  const isSuperAdmin = () => state.profile?.admin_level === 'SUPER_ADMIN';
   const text = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
   const dateLabel = value => new Date(`${value}T12:00:00`).toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
   const kind = value => value === 'REVEILLE' ? 'Reveille' : 'Retreat';
@@ -25,7 +26,7 @@
     const currentId = state.profile?.id;
     const mine = state.requests.filter(item => item.requester_id === currentId);
     const available = state.requests.filter(item => item.requester_id !== currentId && item.status === 'OPEN' && item.can_accept);
-    const adminQueue = isAdmin() ? state.requests.filter(item => item.status === 'OPEN') : [];
+    const adminQueue = isSuperAdmin() ? state.requests.filter(item => item.status === 'OPEN') : [];
     const section = (title, content, empty) => `<section class="coverage-section"><h3>${title}</h3>${content || `<p class="muted">${empty}</p>`}</section>`;
     const mineHtml = mine.map(item => requestCard(item, item.status === 'OPEN' ? `<button class="secondary" data-coverage-cancel="${item.id}">Cancel request</button>` : '')).join('');
     const availableHtml = available.map(item => requestCard(item, `<button class="primary" data-coverage-accept="${item.id}">Accept coverage</button>`)).join('');
@@ -35,7 +36,7 @@
     const swapCard = (item, action) => `<article class="request-card coverage-request-card"><div class="date-pill">SWAP<small>${text(item.status.replace('_', ' '))}</small></div><div class="card-main"><h3>${text(item.requester_name)} · ${text(dateLabel(item.detail_date))}</h3><p>Offering ${text(kind(item.detail_type))} · ${text(dateLabel(item.detail_date))}. Select one of your own ${text(item.requester_type)} shifts to exchange.</p><p>“${text(item.reason)}”</p></div><div class="card-actions">${action || ''}</div></article>`;
     const mySwapHtml = mySwaps.map(item => swapCard(item, item.status === 'OPEN' ? `<button class="secondary" data-swap-cancel="${item.id}">Cancel swap</button>` : '')).join('');
     const swapOfferHtml = swapOffers.map(item => swapCard(item, `<button class="primary" data-swap-accept="${item.id}">Offer a swap</button>`)).join('');
-    host.innerHTML = section('My coverage requests', mineHtml, 'You have no coverage requests.') + section(`Available ${state.profile?.cadet_type || 'cadet'} coverage`, availableHtml, 'No eligible coverage requests are open.') + section('My swap requests', mySwapHtml, 'You have no open swap requests.') + section(`Available ${state.profile?.cadet_type || 'cadet'} swaps`, swapOfferHtml, 'No eligible swap requests are open.') + (isAdmin() ? section('Administrator coverage queue', adminHtml, 'No coverage requests need placement.') : '');
+    host.innerHTML = section('My coverage requests', mineHtml, 'You have no coverage requests.') + section(`Available ${state.profile?.cadet_type || 'cadet'} coverage`, availableHtml, 'No eligible coverage requests are open.') + section('My swap requests', mySwapHtml, 'You have no open swap requests.') + section(`Available ${state.profile?.cadet_type || 'cadet'} swaps`, swapOfferHtml, 'No eligible swap requests are open.') + (isSuperAdmin() ? section('Super Admin placement queue', adminHtml, 'No coverage requests need placement.') : '');
     host.querySelectorAll('[data-coverage-cancel]').forEach(button => button.onclick = () => cancelRequest(button.dataset.coverageCancel));
     host.querySelectorAll('[data-coverage-accept]').forEach(button => button.onclick = () => confirmAccept(button.dataset.coverageAccept));
     host.querySelectorAll('[data-coverage-admin]').forEach(button => button.onclick = () => openAdminAssignment(button.dataset.coverageAdmin));
