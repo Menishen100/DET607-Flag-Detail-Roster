@@ -61,9 +61,9 @@ function emailDetailDate(date) {
   });
 }
 
-async function scheduleAssignmentReminder(recipientId, detail) {
+async function scheduleAssignmentReminder(recipientId, detail, hoursBefore, label) {
   const reportAt = new Date(`${detail.date}T${detail.report}:00`);
-  const reminderAt = new Date(reportAt.getTime() - 24 * 60 * 60 * 1000);
+  const reminderAt = new Date(reportAt.getTime() - hoursBefore * 60 * 60 * 1000);
   const now = new Date();
   // Resend supports scheduled transactional email up to 30 days ahead. A
   // reminder already due, or farther out than that, is deliberately skipped.
@@ -71,19 +71,27 @@ async function scheduleAssignmentReminder(recipientId, detail) {
   await deliverNotification({
     recipientId, eventType: 'DETAIL_REMINDER', entityType: 'DETAIL', entityId: detail.id,
     scheduledAt: reminderAt.toISOString(),
-    subject: `Reminder: DET 607 Flag Detail — ${detail.type}, ${emailDetailDate(detail.date)}`,
-    html: `<h2>Flag detail reminder</h2><p>You are assigned to <strong>${detail.type}</strong> on <strong>${emailDetailDate(detail.date)}</strong>.</p><p>Report at <strong>${detail.report}</strong>; ceremony is at <strong>${detail.time}</strong>.</p><p>Please arrange coverage promptly if you cannot attend.</p>`
+    subject: `${label} reminder: DET 607 Flag Detail — ${detail.type}, ${emailDetailDate(detail.date)}`,
+    html: `<h2>Flag detail reminder</h2><p>This is your <strong>${label.toLowerCase()} reminder</strong> for <strong>${detail.type}</strong> on <strong>${emailDetailDate(detail.date)}</strong>.</p><p>Report at <strong>${detail.report}</strong>; ceremony is at <strong>${detail.time}</strong>.</p><p>Please arrange coverage promptly if you cannot attend.</p>`
   });
 }
 
+async function scheduleAssignmentReminders(recipientId, detail) {
+  const results = await Promise.allSettled([
+    scheduleAssignmentReminder(recipientId, detail, 24, '24-hour'),
+    scheduleAssignmentReminder(recipientId, detail, 1, 'One-hour')
+  ]);
+  results.filter(result => result.status === 'rejected').forEach(result => console.error('A flag-detail reminder could not be scheduled.', result.reason));
+}
+
 async function sendAssignmentNotification(recipientId, detail, action = 'assigned') {
+  const actionPhrase = action === 'placed' ? 'placed on' : 'assigned to';
   await deliverNotification({
     recipientId, eventType: 'ADMIN_ASSIGNMENT', entityType: 'DETAIL', entityId: detail.id,
     subject: `DET 607 Flag Detail assignment — ${detail.type}, ${emailDetailDate(detail.date)}`,
-    html: `<h2>DET 607 Flag Detail assignment</h2><p>You were ${action} to <strong>${detail.type}</strong> on <strong>${emailDetailDate(detail.date)}</strong>.</p><p>Report at ${detail.report}; ceremony at ${detail.time}.</p>`
+    html: `<h2>DET 607 Flag Detail assignment</h2><p>You were ${actionPhrase} <strong>${detail.type}</strong> on <strong>${emailDetailDate(detail.date)}</strong>.</p><p>Report at ${detail.report}; ceremony at ${detail.time}.</p>`
   });
-  try { await scheduleAssignmentReminder(recipientId, detail); }
-  catch (error) { console.error('Assignment email was sent but its reminder could not be scheduled.', error); }
+  await scheduleAssignmentReminders(recipientId, detail);
 }
 
 // The sidebar badge and dashboard metric must be based on the live roster,
@@ -527,8 +535,7 @@ async function sendOwnAssignmentEmail(profile, detail) {
     subject: `DET 607 Flag Detail confirmed — ${detail.type}, ${emailDetailDate(detail.date)}`,
     html: `<h2>Your DET 607 Flag Detail is confirmed</h2><p>You selected and confirmed the <strong>${role}</strong> position for <strong>${detail.type}</strong> on <strong>${emailDetailDate(detail.date)}</strong>.</p><p>Report: ${detail.report}. Ceremony: ${detail.time}.</p>`
   });
-  try { await scheduleAssignmentReminder(profile.id, detail); }
-  catch (error) { console.error('Confirmation email was sent but its reminder could not be scheduled.', error); }
+  await scheduleAssignmentReminders(profile.id, detail);
 }
 
 window.signup = async detailId => {
@@ -595,22 +602,34 @@ async function publishSelectedMonth(monthKey) {
   // delay the newly published Reveille and Retreat details from appearing.
   const { data: { session } } = await supabaseClient.auth.getSession();
   await applySession(session);
-  toast(`Schedule published. The ${publishLabel} template is ready for sign-up; notifications are sending.`);
+  toast(`Schedule published. The ${publishLabel} template is ready for sign-up; notification delivery is starting.`);
   void (async () => {
-    let emailed = 0;
-    for (const recipientId of published?.recipient_ids || []) {
+    const recipients = published?.recipient_ids || [];
+    const batchSize = 50;
+    let queued = 0;
+    for (const [index, recipientId] of recipients.entries()) {
       try {
+        const batchNumber = Math.floor(index / batchSize);
+        let scheduledAt;
+        if (batchNumber > 0) {
+          const scheduled = new Date();
+          scheduled.setDate(scheduled.getDate() + batchNumber);
+          scheduled.setHours(10, 0, 0, 0);
+          if (scheduled <= new Date()) scheduled.setDate(scheduled.getDate() + 1);
+          scheduledAt = scheduled.toISOString();
+        }
         await deliverNotification({
           recipientId, eventType: 'SCHEDULE_PUBLISHED', entityType: 'SCHEDULE', entityId: published.schedule_id,
-          subject: 'DET 607 Flag Detail schedule is open',
-          html: `<h2>Schedule published</h2><p>The ${publishLabel} flag-detail schedule is now open.</p><p>Sign in to review Reveille and Retreat details and claim an eligible open position.</p>`
+          ...(scheduledAt ? { scheduledAt } : {}),
+          subject: `DET 607 ${publishLabel} Flag Detail schedule is open`,
+          html: `<h2>${publishLabel} Flag Detail schedule is open</h2><p>The <strong>${publishLabel}</strong> DET 607 flag-detail schedule is now published and available in the portal.</p><p>Eligible GMC and POC positions are <strong>first come, first served</strong>. Sign in to review Reveille and Retreat details and claim an eligible open position.</p><p>Once confirmed, the shift becomes part of your schedule.</p>`
         });
-        emailed += 1;
+        queued += 1;
       } catch (notificationError) {
         console.error('Could not send a schedule publication email.', notificationError);
       }
     }
-    console.info(`Schedule publication notifications delivered: ${emailed}.`);
+    console.info(`Schedule publication notifications queued: ${queued} of ${recipients.length}.`);
   })();
 }
 
@@ -727,7 +746,7 @@ async function blockScheduleDate(initialDate = '') {
       toast(`Date blocked. ${result?.removed_assignments || 0} assignment${result?.removed_assignments === 1 ? '' : 's'} removed.`);
       for (const recipientId of result?.recipient_ids || []) {
         try {
-          await deliverNotification({ recipientId, eventType: 'DETAIL_BLOCKED', entityType: 'DATE', entityId: result.event_id, subject: `DET 607 Flag Detail cancelled — ${fmtDate(date)}`, html: `<h2>Flag detail cancelled</h2><p>Your Reveille or Retreat assignment on ${fmtDate(date)} has been removed.</p><p>Reason: ${reason}</p>` });
+          await deliverNotification({ recipientId, eventType: 'DETAIL_BLOCKED', entityType: 'DATE', entityId: result.event_id, subject: `DET 607 Flag Detail cancelled — ${emailDetailDate(date)}`, html: `<h2>Flag detail cancelled</h2><p>Your Reveille or Retreat assignment on <strong>${emailDetailDate(date)}</strong> has been removed.</p><p><strong>Reason:</strong> ${escapeRosterText(reason)}</p><p>Sign in to review the published schedule and select another eligible open position if needed.</p>` });
         } catch (notificationError) {
           console.error('Could not send a block cancellation email.', notificationError);
         }
