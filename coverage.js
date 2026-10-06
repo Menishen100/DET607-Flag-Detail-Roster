@@ -50,7 +50,7 @@
     const coverageHeading = isAdmin() ? 'All open coverage requests' : `Available ${state.profile?.cadet_type || 'cadet'} coverage`;
     const swapHeading = isAdmin() ? 'All open swap requests' : `Available ${state.profile?.cadet_type || 'cadet'} swaps`;
     host.innerHTML = section('My coverage requests', mineHtml, 'You have no coverage requests.') + section(coverageHeading, availableHtml, 'No open coverage requests.') + section('My swap requests', mySwapHtml, 'You have no open swap requests.') + section(swapHeading, swapOfferHtml, 'No open swap requests.') + (isSuperAdmin() ? section('Super Admin placement queue', adminHtml, 'No coverage requests need placement.') : '');
-    host.querySelectorAll('[data-coverage-cancel]').forEach(button => button.onclick = () => cancelRequest(button.dataset.coverageCancel));
+    host.querySelectorAll('[data-coverage-cancel]').forEach(button => button.onclick = () => confirmCancelRequest(button.dataset.coverageCancel));
     host.querySelectorAll('[data-coverage-accept]').forEach(button => button.onclick = () => confirmAccept(button.dataset.coverageAccept));
     host.querySelectorAll('[data-coverage-admin]').forEach(button => button.onclick = () => openAdminAssignment(button.dataset.coverageAdmin));
     host.querySelectorAll('[data-swap-cancel]').forEach(button => button.onclick = () => cancelSwap(button.dataset.swapCancel));
@@ -99,9 +99,26 @@
   async function openSwapOffer(id) { const { data: assignments, error } = await window.det607Supabase.rpc('get_my_swap_offer_assignments',{target_request_id:id}); if(error)return toast(error.message); if(!assignments?.length)return toast('You have no eligible shift available to exchange.'); const options=assignments.map(item=>`<option value="${item.assignment_id}">${text(dateLabel(item.detail_date))} — ${text(kind(item.detail_type))}</option>`).join(''); modal(`<p class="eyebrow">CONFIRM SHIFT SWAP</p><h2>Offer your shift</h2><p>Select the assignment you will exchange. Both rosters update only after confirmation.</p><div class="form-row"><label>Your shift</label><select id="swap-offer-assignment">${options}</select></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="confirm-swap">Confirm swap</button></div>`);byId('#confirm-swap').onclick=async()=>{const button=byId('#confirm-swap');button.disabled=true;button.textContent='Swapping…';const {error:swapError}=await window.det607Supabase.rpc('accept_swap_request',{target_request_id:id,offered_assignment_id:byId('#swap-offer-assignment').value});if(swapError){button.disabled=false;button.textContent='Confirm swap';return toast(swapError.message);}await notifyRequest(id,'RESOLVED');close();await refreshSession();toast('Swap confirmed. Both rosters are updated and both cadets were emailed.');}; }
   async function cancelSwap(id) { const { error } = await window.det607Supabase.rpc('cancel_swap_request',{target_request_id:id}); if(error)return toast(error.message);await loadCoverageRequests();toast('Swap request cancelled.'); }
 
+  function confirmCancelRequest(id) {
+    const request = state.requests.find(item => item.id === id);
+    if (!request) return;
+    modal(`<p class="eyebrow">CANCEL COVERAGE REQUEST</p><h2>Cancel this request?</h2><p>You are canceling your request for <strong>${text(kind(request.detail_type))} on ${text(dateLabel(request.detail_date))}</strong>.</p><p class="muted">Eligible cadets will no longer be able to accept it. This cannot be undone.</p><div class="modal-actions"><button class="secondary" onclick="close()">Keep request</button><button class="primary" id="confirm-coverage-cancel">Yes, cancel request</button></div>`);
+    byId('#confirm-coverage-cancel').onclick = async () => {
+      const button = byId('#confirm-coverage-cancel');
+      button.disabled = true;
+      button.textContent = 'Canceling…';
+      await cancelRequest(id);
+    };
+  }
+
   async function cancelRequest(id) {
     const { error } = await window.det607Supabase.rpc('cancel_coverage_request', { target_request_id: id });
-    if (error) return toast(error.message);
+    if (error) {
+      const button = byId('#confirm-coverage-cancel');
+      if (button) { button.disabled = false; button.textContent = 'Yes, cancel request'; }
+      return toast(error.message);
+    }
+    close();
     await loadCoverageRequests(); toast('Coverage request cancelled.');
   }
 
