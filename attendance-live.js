@@ -23,7 +23,11 @@
     if (!rows.length) { list.innerHTML = '<p class="muted">No attendance records or review assignments are available.</p>'; return; }
     list.innerHTML = rows.map(row => {
       const own = row.cadet_id === profile.id;
-      const canCheckIn = own && row.status === 'PENDING' && !row.self_checked_in_at;
+      // A cadet may check in late as well as on the day of the detail.  The
+      // reviewer, not a stale pre-confirmation status, is the authority that
+      // closes the record.  This also repairs legacy rows that were marked
+      // ATTENDED before a reviewer actually confirmed them.
+      const canCheckIn = own && !row.confirmed_at;
       const action = canConfirm(row) && !isFutureDetail(row) ? `<button class="secondary" data-confirm-attendance="${row.assignment_id}">Confirm</button>` : canCheckIn ? `<button class="primary" data-check-in="${row.assignment_id}">Check in</button>` : '';
       const checkInNote = row.self_checked_in_at
         ? `Checked in ${new Date(row.self_checked_in_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
