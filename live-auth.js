@@ -195,6 +195,8 @@ function renderOpen() {
     return;
   }
   board.innerHTML = vacancies.map(detail => {
+    const profile = window.det607CurrentProfile;
+    const alreadySelected = detail.cadetIds.includes(profile?.id) || detail.pocId === profile?.id;
     const openGmc = detail.cadets.filter(name => !name).length;
     const openPoc = detail.poc ? 0 : 1;
     const typeClass = detail.type === 'Reveille' ? 'reveille-open' : 'retreat-open';
@@ -202,7 +204,7 @@ function renderOpen() {
     const dayNumber = date.getDate();
     const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
     const monthName = date.toLocaleDateString('en-US', { month: 'short' });
-    return `<article class="detail-card ${typeClass}"><div class="date-pill">${dayNumber}<small>${escapeRosterText(weekday)} · ${escapeRosterText(monthName)} · ${escapeRosterText(detail.type)}</small></div><div class="card-main"><h3>${escapeRosterText(weekdayDetailDate(detail.date))} · ${escapeRosterText(detail.type)}</h3><p>Report ${escapeRosterText(detail.report)} · Ceremony ${escapeRosterText(detail.time)}</p><p>${openGmc ? `${openGmc} GMC ${openGmc === 1 ? 'slot' : 'slots'} open` : 'GMC slots filled'}${openPoc ? ' · 1 POC lead slot open' : ' · POC lead filled'}</p><div class="tags">${openGmc ? `<span class="tag warn">${openGmc} GMC open</span>` : ''}${openPoc ? '<span class="tag danger">1 POC open</span>' : ''}</div></div><div class="card-actions"><button class="secondary" onclick="detailModal('${detail.id}')">View roster</button><button class="primary" onclick="signup('${detail.id}')">Select shift</button></div></article>`;
+    return `<article class="detail-card ${typeClass} ${alreadySelected ? 'selected-open-detail' : ''}"><div class="date-pill">${dayNumber}<small>${escapeRosterText(weekday)} · ${escapeRosterText(monthName)} · ${escapeRosterText(detail.type)}</small></div><div class="card-main"><h3>${escapeRosterText(weekdayDetailDate(detail.date))} · ${escapeRosterText(detail.type)}</h3><p>Report ${escapeRosterText(detail.report)} · Ceremony ${escapeRosterText(detail.time)}</p><p>${openGmc ? `${openGmc} GMC ${openGmc === 1 ? 'slot' : 'slots'} open` : 'GMC slots filled'}${openPoc ? ' · 1 POC lead slot open' : ' · POC lead filled'}</p><div class="tags">${alreadySelected ? '<span class="tag selected-shift-tag">Already on your schedule</span>' : ''}${openGmc ? `<span class="tag warn">${openGmc} GMC open</span>` : ''}${openPoc ? '<span class="tag danger">1 POC open</span>' : ''}</div></div><div class="card-actions"><button class="secondary" onclick="detailModal('${detail.id}')">View roster</button><button class="primary ${alreadySelected ? 'selected-shift-button' : ''}" onclick="signup('${detail.id}')">${alreadySelected ? 'Selected shift' : 'Select shift'}</button></div></article>`;
   }).join('');
 }
 
@@ -545,12 +547,18 @@ window.signup = async detailId => {
   if (detail.blocked) return toast(`This flag detail is unavailable: ${detail.blockedReason || 'Blocked date'}.`);
   const isPoc = profile.cadet_type === 'POC';
   const slotLabel = isPoc ? 'POC lead' : 'Cadet';
-  if (isPoc && detail.poc) return toast('The POC lead position for this detail has already been claimed.');
-  if (!isPoc && !detail.cadets.some(name => !name)) return toast('All three GMC cadet positions for this detail have been claimed.');
+  const alreadySelected = detail.cadetIds.includes(profile.id) || detail.pocId === profile.id;
   let currentMonthCount = 0;
   try { currentMonthCount = (await monthlyShiftCounts(detail.date)).get(profile.id) || 0; }
   catch (countError) { return toast(`Could not load your monthly shift count: ${countError.message}`); }
-  modal(`<p class="eyebrow">CONFIRM FLAG DETAIL</p><h2>${detail.type} · ${weekdayDetailDate(detail.date)}</h2><p>You are claiming the <strong>${slotLabel}</strong> position. Report at ${detail.report}; ceremony at ${detail.time}.</p><p><strong>Your shifts this month: (${currentMonthCount})</strong></p><p>This is first come, first served. Once confirmed, it becomes part of your schedule.</p><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="confirm-detail-claim">Yes, confirm this shift</button></div>`);
+  if (alreadySelected) {
+    const selectedRole = detail.pocId === profile.id ? 'POC lead' : 'GMC cadet';
+    modal(`<p class="eyebrow">SELECTED FLAG DETAIL</p><h2>${detail.type} · ${weekdayDetailDate(detail.date)}</h2><p><strong>This flag detail is already on your schedule.</strong> You are assigned as the ${selectedRole}.</p><p>Report at ${detail.report}; ceremony at ${detail.time}.</p><p><strong>Your shifts this month: (${currentMonthCount})</strong></p><p class="muted"><strong>Important:</strong> Report to the Detachment Lounge by the listed report time. If you cannot attend, submit a coverage request rather than leaving the shift unfilled.</p><div class="modal-actions"><button class="primary" onclick="close()">Close</button></div>`);
+    return;
+  }
+  if (isPoc && detail.poc) return toast('The POC lead position for this detail has already been claimed.');
+  if (!isPoc && !detail.cadets.some(name => !name)) return toast('All three GMC cadet positions for this detail have been claimed.');
+  modal(`<p class="eyebrow">CONFIRM FLAG DETAIL</p><h2>${detail.type} · ${weekdayDetailDate(detail.date)}</h2><p>You are claiming the <strong>${slotLabel}</strong> position. Report at ${detail.report}; ceremony at ${detail.time}.</p><p><strong>Your shifts this month: (${currentMonthCount})</strong></p><p class="muted"><strong>Important:</strong> Report to the Detachment Lounge by the listed report time. If you cannot attend after confirming, submit a coverage request.</p><p>This is first come, first served. Once confirmed, it becomes part of your schedule.</p><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="confirm-detail-claim">Yes, confirm this shift</button></div>`);
   document.querySelector('#confirm-detail-claim').onclick = async () => {
     const button = document.querySelector('#confirm-detail-claim');
     button.disabled = true; button.textContent = 'Confirming…';
