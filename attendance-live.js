@@ -38,7 +38,10 @@
         ? `Confirmed: ${displayStatus(row.status)}`
         : row.self_checked_in_at ? 'Awaiting confirmation' : 'Not checked in';
       const statusClass = row.self_checked_in_at || row.status !== 'PENDING' ? String(row.status).toLowerCase().replace('_','-') : 'not-checked-in';
-      return `<article class="attendance-item"><strong>${escapeHtml(detailLabel(row))}</strong><span>${escapeHtml(row.cadet_name)}<br><small class="muted">${escapeHtml(row.cadet_type)} · ${escapeHtml(row.assignment_position === 'POC_LEAD' ? 'POC lead' : 'GMC')}</small></span><span>${escapeHtml(checkInNote)}</span><span class="status ${statusClass}">${escapeHtml(statusLabel)}</span>${action}</article>`;
+      const rosterLabel = row.assignment_position === 'POC_LEAD'
+        ? `${row.cadet_type} · POC lead`
+        : row.cadet_type;
+      return `<article class="attendance-item"><strong>${escapeHtml(detailLabel(row))}</strong><span>${escapeHtml(row.cadet_name)}<br><small class="muted">${escapeHtml(rosterLabel)}</small></span><span>${escapeHtml(checkInNote)}</span><span class="status ${statusClass}">${escapeHtml(statusLabel)}</span>${action}</article>`;
     }).join('');
     list.querySelectorAll('[data-check-in]').forEach(button => button.onclick = () => checkIn(button.dataset.checkIn));
     list.querySelectorAll('[data-confirm-attendance]').forEach(button => button.onclick = () => confirmAttendance(button.dataset.confirmAttendance));
