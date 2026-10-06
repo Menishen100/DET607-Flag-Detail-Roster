@@ -40,3 +40,7 @@ begin
 end $$;
 
 grant execute on function public.get_my_attendance_roster() to authenticated;
+
+-- Make the new return shape immediately available to the API used by the
+-- browser, rather than waiting for the schema cache to expire.
+notify pgrst, 'reload schema';

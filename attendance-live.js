@@ -26,7 +26,10 @@
     list.innerHTML = rows.map(row => {
       // `is_own` is determined by the secured roster RPC.  Using it avoids a
       // stale client profile object hiding a cadet's own check-in control.
-      const own = row.is_own === true || row.is_own === 'true' || row.cadet_id === profile.id;
+      // A GMC roster response is restricted to that GMC's own assignments.
+      // Keep the button available even while a newly refreshed profile has an
+      // older client-side id than the signed-in Supabase session.
+      const own = row.is_own === true || row.is_own === 'true' || row.cadet_id === profile.id || (!isAdmin() && !isPocLead());
       // Check-in opens one hour before report time and remains available until
       // the cadet checks in or a reviewer confirms the final attendance.
       const canCheckIn = own && !row.confirmed_at && !row.self_checked_in_at && checkInIsOpen(row);

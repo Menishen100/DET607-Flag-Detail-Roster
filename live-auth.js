@@ -177,6 +177,17 @@ function renderCalendar() {
   }).join('');
 }
 
+function detailIsSelectedByProfile(detail, profile = window.det607CurrentProfile) {
+  if (!profile) return false;
+  const profileName = String(profile.full_name || '').trim().toLocaleLowerCase();
+  const matchingName = name => String(name || '').trim().toLocaleLowerCase() === profileName;
+  return detail.cadetIds.includes(profile.id)
+    || detail.pocId === profile.id
+    // The roster ID is authoritative. The name fallback keeps a recently
+    // re-invited cadet's existing shift visible while their session refreshes.
+    || (!!profileName && (detail.cadets.some(matchingName) || matchingName(detail.poc)));
+}
+
 // Open Details is intentionally a concise sign-up board, not a duplicate roster.
 // It contains only active vacancies; the full assignment list belongs on Monthly Schedule.
 function renderOpen() {
@@ -196,7 +207,7 @@ function renderOpen() {
   }
   board.innerHTML = vacancies.map(detail => {
     const profile = window.det607CurrentProfile;
-    const alreadySelected = detail.cadetIds.includes(profile?.id) || detail.pocId === profile?.id;
+    const alreadySelected = detailIsSelectedByProfile(detail, profile);
     const openGmc = detail.cadets.filter(name => !name).length;
     const openPoc = detail.poc ? 0 : 1;
     const typeClass = detail.type === 'Reveille' ? 'reveille-open' : 'retreat-open';
@@ -547,7 +558,7 @@ window.signup = async detailId => {
   if (detail.blocked) return toast(`This flag detail is unavailable: ${detail.blockedReason || 'Blocked date'}.`);
   const isPoc = profile.cadet_type === 'POC';
   const slotLabel = isPoc ? 'POC lead' : 'Cadet';
-  const alreadySelected = detail.cadetIds.includes(profile.id) || detail.pocId === profile.id;
+  const alreadySelected = detailIsSelectedByProfile(detail, profile);
   let currentMonthCount = 0;
   try { currentMonthCount = (await monthlyShiftCounts(detail.date)).get(profile.id) || 0; }
   catch (countError) { return toast(`Could not load your monthly shift count: ${countError.message}`); }
