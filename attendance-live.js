@@ -24,7 +24,9 @@
     if (heading) heading.textContent = isAdmin() ? 'Confirm any attendance record, including your own. Cadets can check in first; every final decision is recorded.' : isPocLead() ? 'Confirm GMC attendance for flag details you lead. Your own attendance is confirmed by an administrator.' : 'Check in for your own assigned flag detail. A POC lead will confirm the final attendance record.';
     if (!rows.length) { list.innerHTML = '<p class="muted">No attendance records or review assignments are available.</p>'; return; }
     list.innerHTML = rows.map(row => {
-      const own = row.cadet_id === profile.id;
+      // `is_own` is determined by the secured roster RPC.  Using it avoids a
+      // stale client profile object hiding a cadet's own check-in control.
+      const own = row.is_own === true || row.is_own === 'true' || row.cadet_id === profile.id;
       // Check-in opens one hour before report time and remains available until
       // the cadet checks in or a reviewer confirms the final attendance.
       const canCheckIn = own && !row.confirmed_at && !row.self_checked_in_at && checkInIsOpen(row);
