@@ -47,6 +47,19 @@ function authStatus(message, type = '') {
 }
 function detailLabel(type) { return type === 'REVEILLE' ? 'Reveille' : 'Retreat'; }
 
+// Do not rely on the page's generic `close()` function: browsers already use
+// that name for window.close(), which can leave a modal open on mobile. This
+// delegated handler also works for modal content that is rendered dynamically.
+function dismissPortalModal() {
+  document.querySelector('#modal')?.classList.remove('show');
+}
+document.addEventListener('click', event => {
+  if (event.target.closest('#close-modal, [data-dismiss-portal-modal]')) {
+    event.preventDefault();
+    dismissPortalModal();
+  }
+});
+
 // Dates are stored as YYYY-MM-DD. Noon avoids a timezone shift when a cadet
 // opens the schedule from a different device or time zone.
 function weekdayDetailDate(date) {
@@ -564,10 +577,7 @@ window.signup = async detailId => {
   catch (countError) { return toast(`Could not load your monthly shift count: ${countError.message}`); }
   if (alreadySelected) {
     const selectedRole = detail.pocId === profile.id ? 'POC lead' : 'GMC cadet';
-    modal(`<p class="eyebrow">SELECTED FLAG DETAIL</p><h2>${detail.type} · ${weekdayDetailDate(detail.date)}</h2><p><strong>This flag detail is already on your schedule.</strong> You are assigned as the ${selectedRole}.</p><p>Report at ${detail.report}; ceremony at ${detail.time}.</p><p><strong>Your shifts this month: (${currentMonthCount})</strong></p><p class="muted"><strong>Accountability:</strong> This is your assigned duty. Report to the Detachment Lounge on time. If a conflict arises, submit a coverage or swap request no later than 24 hours before report time. Failure to report without approved coverage may result in counseling.</p><div class="modal-actions"><button class="primary" id="close-selected-detail">Close</button></div>`);
-    const dismissSelectedDetail = () => document.querySelector('#modal').classList.remove('show');
-    document.querySelector('#close-selected-detail').onclick = dismissSelectedDetail;
-    document.querySelector('#close-modal').onclick = dismissSelectedDetail;
+    modal(`<p class="eyebrow">SELECTED FLAG DETAIL</p><h2>${detail.type} · ${weekdayDetailDate(detail.date)}</h2><p><strong>This flag detail is already on your schedule.</strong> You are assigned as the ${selectedRole}.</p><p>Report at ${detail.report}; ceremony at ${detail.time}.</p><p><strong>Your shifts this month: (${currentMonthCount})</strong></p><p class="muted"><strong>Accountability:</strong> This is your assigned duty. Report to the Detachment Lounge on time. If a conflict arises, submit a coverage or swap request no later than 24 hours before report time. Failure to report without approved coverage may result in counseling.</p><div class="modal-actions"><button type="button" class="primary" data-dismiss-portal-modal>Close</button></div>`);
     return;
   }
   if (isPoc && detail.poc) return toast('The POC lead position for this detail has already been claimed.');
