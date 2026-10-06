@@ -11,6 +11,8 @@
   const detailLabel = row => `${new Date(`${row.detail_date}T12:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${row.detail_type === 'REVEILLE' ? 'Reveille' : 'Retreat'}`;
   const toast = message => window.toast ? window.toast(message) : alert(message);
   const isFutureDetail = row => new Date(`${row.detail_date}T12:00`).setHours(0, 0, 0, 0) > new Date().setHours(0, 0, 0, 0);
+  const checkInOpensAt = row => new Date(`${row.detail_date}T${String(row.report_time).slice(0, 5)}`).getTime() - (60 * 60 * 1000);
+  const checkInIsOpen = row => Date.now() >= checkInOpensAt(row);
 
   function canConfirm(row) {
     return isAdmin() || (isPocLead() && row.cadet_type === 'GMC' && row.cadet_id !== profile.id);
@@ -23,16 +25,16 @@
     if (!rows.length) { list.innerHTML = '<p class="muted">No attendance records or review assignments are available.</p>'; return; }
     list.innerHTML = rows.map(row => {
       const own = row.cadet_id === profile.id;
-      // A cadet may check in late as well as on the day of the detail.  The
-      // reviewer, not a stale pre-confirmation status, is the authority that
-      // closes the record.  This also repairs legacy rows that were marked
-      // ATTENDED before a reviewer actually confirmed them.
-      const canCheckIn = own && !row.confirmed_at;
+      // Check-in opens one hour before report time and remains available until
+      // the cadet checks in or a reviewer confirms the final attendance.
+      const canCheckIn = own && !row.confirmed_at && !row.self_checked_in_at && checkInIsOpen(row);
       const action = canConfirm(row) && !isFutureDetail(row) ? `<button class="secondary" data-confirm-attendance="${row.assignment_id}">Confirm</button>` : canCheckIn ? `<button class="primary" data-check-in="${row.assignment_id}">Check in</button>` : '';
       const checkInNote = row.self_checked_in_at
         ? `Checked in ${new Date(row.self_checked_in_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
         : 'No check-in yet';
-      const statusLabel = isFutureDetail(row) && !row.confirmed_at
+      const statusLabel = !row.confirmed_at && !row.self_checked_in_at && !checkInIsOpen(row)
+        ? `Check-in opens ${new Date(checkInOpensAt(row)).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+        : isFutureDetail(row) && !row.confirmed_at
         ? 'Scheduled — not confirmable yet'
         : row.confirmed_at
         ? `Confirmed: ${displayStatus(row.status)}`
