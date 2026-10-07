@@ -443,7 +443,9 @@ async function loadLiveRoster(profile, email) {
   document.querySelector('#profile-email').textContent = email || '';
   document.querySelector('#profile-role').textContent = profileRole;
   window.det607CurrentProfile=profile; applyRoleAccess(profile); await loadImportantInformation(); document.dispatchEvent(new CustomEvent('det607:profile', { detail: { profile, email } }));
-  document.querySelector('#page-title').textContent = `Welcome, ${displayName}.`;
+  document.querySelector('#page-title').textContent = window.det607DashboardGreeting
+    ? window.det607DashboardGreeting()
+    : `Welcome, ${displayName}.`;
   // Keep the month the Super Admin selected visible after publishing. Older
   // behavior always jumped back to the first published month (usually
   // September), making newly published templates appear to be missing.
