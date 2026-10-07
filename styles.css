@@ -165,3 +165,8 @@
 
 /* Coverage requests are grouped by what the current account can safely act on. */
 .coverage-section{margin:0 0 22px}.coverage-section>h3{margin:0 0 10px;font-size:15px}.coverage-request-card{align-items:center}.coverage-request-card .card-main p{margin:4px 0}.coverage-request-card .card-actions{min-width:140px}.coverage-request-card .card-actions button{width:100%}@media(max-width:720px){.coverage-request-card .card-actions{width:100%}}
+
+/* Mobile navigation is a left-side drawer, keeping page content at the top
+   instead of converting the desktop sidebar into a horizontal strip. */
+.mobile-menu-toggle,.mobile-nav-backdrop{display:none}
+@media(max-width:720px){.mobile-menu-toggle{display:inline-flex;align-items:center;justify-content:center}.sidebar{position:fixed;z-index:40;inset:0 auto 0 0;width:min(280px,84vw);height:100dvh;padding:24px 16px;transform:translateX(-105%);transition:transform .22s ease;overflow-y:auto;box-shadow:8px 0 24px #102a4340}.sidebar nav{display:grid;overflow:visible}.sidebar .nav{white-space:normal}.side-bottom{display:block;position:relative;margin-top:auto}.mobile-nav-open .sidebar{transform:translateX(0)}.mobile-nav-backdrop{position:fixed;z-index:35;inset:0;width:100%;height:100%;padding:0;border:0;background:#102a4366}.mobile-nav-open .mobile-nav-backdrop{display:block}.mobile-nav-open{overflow:hidden}main{margin-left:0}.header-actions{gap:8px}.mobile-nav-open .profile-popover{position:static;margin-top:8px}.mobile-nav-open .user-card{padding:12px 4px}}

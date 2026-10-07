@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>DET 607 Flag Detail Management</title><link rel="icon" href="assets/favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png"><link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png"><link rel="apple-touch-icon" sizes="180x180" href="assets/favicon-180.png"><link rel="stylesheet" href="styles.css?v=20261007-mobile-checkin-visible"><link rel="stylesheet" href="friday-schedule.css?v=20260924"><link rel="stylesheet" href="workload-report.css?v=20260925-workload-placement">
+  <title>DET 607 Flag Detail Management</title><link rel="icon" href="assets/favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png"><link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png"><link rel="apple-touch-icon" sizes="180x180" href="assets/favicon-180.png"><link rel="stylesheet" href="styles.css?v=20261007-mobile-side-menu"><link rel="stylesheet" href="friday-schedule.css?v=20260924"><link rel="stylesheet" href="workload-report.css?v=20260925-workload-placement">
 </head>
 <body>
   <section class="auth-screen" id="auth-screen">
@@ -20,7 +20,7 @@
     </div>
   </section>
   <div id="app-shell" hidden>
-  <aside class="sidebar">
+  <aside class="sidebar" id="mobile-sidebar">
     <div class="brand"><img class="brand-logo" src="assets/det607-logo.png" alt="AFROTC Detachment 607 emblem"><div><strong>DET 607</strong><small>Flag Detail Management</small></div></div>
     <nav>
       <button class="nav active" data-view="dashboard">Overview</button>
@@ -32,9 +32,9 @@
       <button class="nav" data-view="roster" id="roster-nav" hidden>Cadet directory</button>
     </nav>
     <div class="side-bottom"><button class="user-card" id="profile-menu" aria-expanded="false" aria-controls="profile-popover"><span class="avatar">MA</span><span><strong>Loading profile</strong><small>Roster account</small></span><b class="profile-chevron">⌄</b></button><div class="profile-popover" id="profile-popover" hidden><strong id="profile-name">Loading profile</strong><small id="profile-email"></small><span id="profile-role">Roster account</span><button id="manage-profile" type="button">My profile & class level</button><button id="sign-out" type="button">Sign out</button></div><button id="reset" hidden type="button"></button></div>
-  </aside>
+  </aside><button class="mobile-nav-backdrop" id="mobile-nav-backdrop" type="button" aria-label="Close menu"></button>
   <main>
-    <header><div><p class="eyebrow">FLAG DETAIL OPERATIONS</p><h1 id="page-title">Good morning, Maj. Reynolds.</h1><p class="muted" id="today-label"></p></div><div class="header-actions"><button class="icon-button" id="show-notifications" aria-label="Notifications">⌁<i id="notification-dot"></i></button><button class="secondary" id="block-date">Block date</button><button class="primary" id="publish">Publish schedule</button></div></header>
+    <header><div><p class="eyebrow">FLAG DETAIL OPERATIONS</p><h1 id="page-title">Good morning, Maj. Reynolds.</h1><p class="muted" id="today-label"></p></div><div class="header-actions"><button class="secondary mobile-menu-toggle" id="mobile-menu-toggle" type="button" aria-expanded="false" aria-controls="mobile-sidebar">Menu</button><button class="icon-button" id="show-notifications" aria-label="Notifications">⌁<i id="notification-dot"></i></button><button class="secondary" id="block-date">Block date</button><button class="primary" id="publish">Publish schedule</button></div></header>
     <section class="important-information" id="important-information" aria-labelledby="important-information-title"><button class="important-banner" id="important-information-toggle" type="button" aria-expanded="false" aria-controls="important-information-content"><span>IMPORTANT INFORMATION</span><b>View details ▾</b></button><div id="important-information-content" hidden><div class="important-information-heading"><div><p class="eyebrow">IMPORTANT INFORMATION</p><h2 id="important-information-title">Flag detail expectations</h2></div><button class="secondary" id="edit-important-contact" hidden>Edit information</button></div><div class="important-information-grid"><p><strong id="important-reveille-title">Reveille · 08:30</strong><span id="important-reveille-message">Report by 08:25 in the Detachment Lounge.</span></p><p><strong id="important-retreat-title">Retreat · 15:30</strong><span id="important-retreat-message">Report by 15:25 in the Detachment Lounge.</span></p><p><strong>Dress and appearance</strong><span id="important-dress-message">Comply with DET 607 and AFI 36-2903 Dress and Appearance Standards during Flag Detail.</span></p><p><strong>Coverage responsibility</strong><span id="important-coverage-message">You are responsible for finding a replacement if you cannot attend your scheduled slot.</span></p><p><strong>Missed details</strong><span id="important-missed-message">Without coverage: verbal counseling for the first absence, written counseling for the second, and cadre counseling for further absences.</span></p></div><p class="important-contact" id="important-contact">Contact <strong id="important-contact-name">C/Lt Col Fuller</strong> with questions or concerns at <a id="important-contact-email" href="mailto:tfuller8@broncos.uncfsu.edu">tfuller8@broncos.uncfsu.edu</a><span id="important-contact-discord"> or on Discord (pocsfinest_27028)</span>.</p><p class="important-note" id="important-note">Follow the time shown on your published shift if the schedule lists an exception.</p></div></section>
     <section id="dashboard" class="view active-view">
       <div class="notice"><span>◉</span><div><strong>September schedule is open for sign-up.</strong><p>All active cadets were notified at 08:00. Unfilled positions remain available until finalization.</p></div><button data-view-target="open">View open details</button></div>
@@ -53,7 +53,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=20260922"></script>
   <script src="app.js?v=20261007-cadet-dashboard"></script>
-  <script src="live-auth.js?v=20261007-cadet-dashboard"></script>
+  <script src="live-auth.js?v=20261007-mobile-side-menu"></script>
   <script src="coverage.js?v=20261006-confirm-cancel"></script>
   <script src="roster.js?v=20260923-delete-cadet"></script>
   <script src="counseling.js?v=20260925-simple-signature"></script>

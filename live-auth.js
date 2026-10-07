@@ -721,6 +721,19 @@ async function openSuperAdminPlacement() {
 
 document.querySelector('#assign-cadet').onclick = openSuperAdminPlacement;
 
+// On phones, navigation stays in a familiar slide-out drawer instead of
+// taking up the top of the portal as a horizontal list.
+const mobileMenuToggle = document.querySelector('#mobile-menu-toggle');
+const mobileMenuBackdrop = document.querySelector('#mobile-nav-backdrop');
+const setMobileMenuOpen = open => {
+  document.body.classList.toggle('mobile-nav-open', open);
+  mobileMenuToggle?.setAttribute('aria-expanded', String(open));
+};
+mobileMenuToggle?.addEventListener('click', () => setMobileMenuOpen(!document.body.classList.contains('mobile-nav-open')));
+mobileMenuBackdrop?.addEventListener('click', () => setMobileMenuOpen(false));
+document.querySelectorAll('.sidebar .nav').forEach(button => button.addEventListener('click', () => setMobileMenuOpen(false)));
+document.addEventListener('keydown', event => { if (event.key === 'Escape') setMobileMenuOpen(false); });
+
 async function openScheduleException(){
   if(!['ADMIN','SUPER_ADMIN'].includes(window.det607CurrentProfile?.admin_level))return toast('Administrator access is required.');
   const selectedMonth=scheduleMonthValue(),details=data.details.filter(detail=>detail.date.startsWith(selectedMonth)&&!detail.blocked);
