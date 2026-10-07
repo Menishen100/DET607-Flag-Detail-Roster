@@ -122,7 +122,7 @@ function escapeRosterText(value) {
   return String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 }
 
-function setPortalToday(){const now=new Date();document.querySelector('#today-label').textContent=`${now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})} · DET 607 operations`;}
+function setPortalToday(){const date=new Date();document.querySelector('#today-label').textContent=`${new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'long',month:'long',day:'numeric',year:'numeric'}).format(date)} · DET 607 operations`;}
 
 // Replace the demo calendar renderer with a live monthly roster view. Staff can
 // see each confirmed cadet and every remaining GMC/POC position at a glance.
