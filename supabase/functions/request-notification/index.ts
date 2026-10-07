@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const headers = { "Access-Control-Allow-Origin": "https://det607flagdetail.com", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Content-Type": "application/json" };
 const reply = (body: Record<string, unknown>, status = 200) => new Response(JSON.stringify(body), { status, headers });
 const fullDate = (date: string) => new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
+const militaryTime = (value: string) => value.slice(0, 5).replace(":", "");
 
 Deno.serve(async request => {
   if (request.method === "OPTIONS") return new Response("ok", { headers });
@@ -39,12 +40,12 @@ Deno.serve(async request => {
       const blocked = new Set((sameDay || []).map((row: { cadet_id: string }) => row.cadet_id));
       recipientIds = (candidates || []).map(row => row.id).filter(id => !blocked.has(id));
       subject = `DET 607 ${requestKind} available — ${fullDate(detail.detail_date)}`;
-      html = `<h2>${requestKind === "shift swap" ? "Shift swap" : "Coverage"} available</h2><p><strong>${requester.full_name}</strong> has posted a ${requestKind} for <strong>${detail.detail_type === "REVEILLE" ? "Reveille" : "Retreat"}</strong> on <strong>${fullDate(detail.detail_date)}</strong>.</p><p><strong>Reason:</strong> ${requestRow.reason}</p><p>Sign in to DET 607 Flag Detail Management to review and respond.</p>`;
+      html = `<h2>${requestKind === "shift swap" ? "Shift swap" : "Coverage"} available</h2><p><strong>${requester.full_name}</strong> has posted a ${requestKind} for <strong>${detail.detail_type === "REVEILLE" ? "Reveille" : "Retreat"}</strong> on <strong>${fullDate(detail.detail_date)}</strong>.</p><p>Report: <strong>${militaryTime(detail.report_time)}</strong>. Ceremony: <strong>${militaryTime(detail.ceremony_time)}</strong>.</p><p><strong>Reason:</strong> ${requestRow.reason}</p><p>Sign in to DET 607 Flag Detail Management to review and respond.</p>`;
     } else {
       if (!staff && requestRow.accepted_by !== user.id) return reply({ error: "Only the accepting cadet or an administrator may announce the result" }, 403);
       recipientIds = [requestRow.requester_id, requestRow.accepted_by].filter(Boolean) as string[];
       subject = `DET 607 ${requestKind} confirmed — ${fullDate(detail.detail_date)}`;
-      html = `<h2>${requestKind === "shift swap" ? "Shift swap" : "Coverage"} confirmed</h2><p>The ${requestKind} for <strong>${detail.detail_type === "REVEILLE" ? "Reveille" : "Retreat"}</strong> on <strong>${fullDate(detail.detail_date)}</strong> has been confirmed.</p><p>Sign in to review your updated schedule.</p>`;
+      html = `<h2>${requestKind === "shift swap" ? "Shift swap" : "Coverage"} confirmed</h2><p>The ${requestKind} for <strong>${detail.detail_type === "REVEILLE" ? "Reveille" : "Retreat"}</strong> on <strong>${fullDate(detail.detail_date)}</strong> has been confirmed.</p><p>Report: <strong>${militaryTime(detail.report_time)}</strong>. Ceremony: <strong>${militaryTime(detail.ceremony_time)}</strong>.</p><p>Sign in to review your updated schedule.</p>`;
     }
 
     const resendKey = Deno.env.get("RESEND_API_KEY");

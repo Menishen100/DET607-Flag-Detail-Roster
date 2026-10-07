@@ -9,7 +9,7 @@
   const text = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
   const dateLabel = value => new Date(`${value}T12:00:00`).toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
   const kind = value => value === 'REVEILLE' ? 'Reveille' : 'Retreat';
-  const time = value => String(value || '').slice(0, 5);
+  const time = value => String(value || '').slice(0, 5).replace(':', '');
   const refreshSession = async () => {
     const { data: { session } } = await window.det607Supabase.auth.getSession();
     if (session && typeof applySession === 'function') await applySession(session);

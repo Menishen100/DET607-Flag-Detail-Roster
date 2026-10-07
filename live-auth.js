@@ -46,6 +46,7 @@ function authStatus(message, type = '') {
   authMessage.className = `auth-message ${type}`;
 }
 function detailLabel(type) { return type === 'REVEILLE' ? 'Reveille' : 'Retreat'; }
+const militaryTime = value => String(value || '').slice(0, 5).replace(':', '');
 
 // Do not rely on the page's generic `close()` function: browsers already use
 // that name for window.close(), which can leave a modal open on mobile. This
@@ -75,7 +76,7 @@ function emailDetailDate(date) {
 }
 
 async function scheduleAssignmentReminder(recipientId, detail, hoursBefore, label) {
-  const reportAt = new Date(`${detail.date}T${detail.report}:00`);
+  const reportAt = new Date(`${detail.date}T${detail.reportInput || detail.report}:00`);
   const reminderAt = new Date(reportAt.getTime() - hoursBefore * 60 * 60 * 1000);
   const now = new Date();
   // Resend supports scheduled transactional email up to 30 days ahead. A
@@ -400,13 +401,13 @@ async function openAdminPlacement(detail, requestedPosition = null) {
 }
 
 function openDetailTimeEditor(detail) {
-  modal(`<p class="eyebrow">DETAIL TIME UPDATE</p><h2>Update ${detail.type} times</h2><div class="form-row"><label>Report time</label><input id="staff-report-time" type="time" value="${detail.report}"></div><div class="form-row"><label>Ceremony time</label><input id="staff-ceremony-time" type="time" value="${detail.time}"></div><div class="modal-actions"><button class="secondary" id="cancel-detail-times">Cancel</button><button class="primary" id="save-detail-times">Save changes</button></div>`);
+  modal(`<p class="eyebrow">DETAIL TIME UPDATE</p><h2>Update ${detail.type} times</h2><div class="form-row"><label>Report time</label><input id="staff-report-time" type="time" value="${detail.reportInput || detail.report}"></div><div class="form-row"><label>Ceremony time</label><input id="staff-ceremony-time" type="time" value="${detail.timeInput || detail.time}"></div><div class="modal-actions"><button class="secondary" id="cancel-detail-times">Cancel</button><button class="primary" id="save-detail-times">Save changes</button></div>`);
   document.querySelector('#cancel-detail-times').onclick = close;
   document.querySelector('#save-detail-times').onclick = async () => {
     const report = document.querySelector('#staff-report-time').value, ceremony = document.querySelector('#staff-ceremony-time').value;
     const { data: recipients, error } = await supabaseClient.rpc('admin_update_detail_times', { target_detail_id: detail.id, new_report_time: report, new_ceremony_time: ceremony });
     if (error) return toast(error.message);
-    for (const recipientId of recipients || []) await supabaseClient.functions.invoke('send-notification', { body: { recipientId, eventType: 'DETAIL_TIME_UPDATED', entityType: 'DETAIL', entityId: detail.id, subject: `DET 607 Flag Detail time updated — ${detail.type}, ${emailDetailDate(detail.date)}`, html: `<p>Your ${detail.type} on <strong>${emailDetailDate(detail.date)}</strong> now reports at ${report}; ceremony is ${ceremony}.</p>` } });
+    for (const recipientId of recipients || []) await supabaseClient.functions.invoke('send-notification', { body: { recipientId, eventType: 'DETAIL_TIME_UPDATED', entityType: 'DETAIL', entityId: detail.id, subject: `DET 607 Flag Detail time updated — ${detail.type}, ${emailDetailDate(detail.date)}`, html: `<p>Your ${detail.type} on <strong>${emailDetailDate(detail.date)}</strong> now reports at ${militaryTime(report)}; ceremony is ${militaryTime(ceremony)}.</p>` } });
     close(); const { data: { session } } = await supabaseClient.auth.getSession(); await applySession(session); toast('Detail time updated.');
   };
 }
@@ -422,7 +423,7 @@ async function loadLiveRoster(profile, email) {
     const assignedCadetIds = detail.cadet_ids || [];
     return {
     id: detail.detail_id, date: detail.detail_date, type: detailLabel(detail.detail_type),
-    report: String(detail.report_time).slice(0, 5), time: String(detail.ceremony_time).slice(0, 5),
+    report: militaryTime(detail.report_time), time: militaryTime(detail.ceremony_time), reportInput: String(detail.report_time).slice(0, 5), timeInput: String(detail.ceremony_time).slice(0, 5),
     cadets: [...assignedCadets, ...Array(Math.max(0, 3 - assignedCadets.length)).fill('')],
     cadetIds: [...assignedCadetIds, ...Array(Math.max(0, 3 - assignedCadetIds.length)).fill('')],
     poc: detail.poc_name || '', pocId: detail.poc_id || '',
@@ -738,10 +739,10 @@ async function openScheduleException(){
   if(!['ADMIN','SUPER_ADMIN'].includes(window.det607CurrentProfile?.admin_level))return toast('Administrator access is required.');
   const selectedMonth=scheduleMonthValue(),details=data.details.filter(detail=>detail.date.startsWith(selectedMonth)&&!detail.blocked);
   if(!details.length)return toast('Publish this month first, then select the weekday detail that needs a time exception.');
-  modal(`<p class="eyebrow">SCHEDULE EXCEPTION</p><h2>Edit a selected flag-detail date</h2><p>Choose the exact weekday and detail. This changes only that shift; the standard monthly times remain unchanged.</p><div class="form-row"><label>Scheduled detail</label><select id="exception-detail">${details.map(detail=>`<option value="${detail.id}">${fmtDate(detail.date)} · ${detail.type} · report ${detail.report}</option>`).join('')}</select></div><div class="form-row"><label>Report time</label><input id="exception-report" type="time" value="${details[0].report}"></div><div class="form-row"><label>Ceremony time</label><input id="exception-ceremony" type="time" value="${details[0].time}"></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="save-exception">Save exception</button></div>`);
+  modal(`<p class="eyebrow">SCHEDULE EXCEPTION</p><h2>Edit a selected flag-detail date</h2><p>Choose the exact weekday and detail. This changes only that shift; the standard monthly times remain unchanged.</p><div class="form-row"><label>Scheduled detail</label><select id="exception-detail">${details.map(detail=>`<option value="${detail.id}">${fmtDate(detail.date)} · ${detail.type} · report ${detail.report}</option>`).join('')}</select></div><div class="form-row"><label>Report time</label><input id="exception-report" type="time" value="${details[0].reportInput || details[0].report}"></div><div class="form-row"><label>Ceremony time</label><input id="exception-ceremony" type="time" value="${details[0].timeInput || details[0].time}"></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" id="save-exception">Save exception</button></div>`);
   const picker=document.querySelector('#exception-detail');
-  picker.onchange=()=>{const detail=details.find(item=>item.id===picker.value);document.querySelector('#exception-report').value=detail.report;document.querySelector('#exception-ceremony').value=detail.time;};
-  document.querySelector('#save-exception').onclick=async()=>{const detail=details.find(item=>item.id===picker.value),report=document.querySelector('#exception-report').value,ceremony=document.querySelector('#exception-ceremony').value;if(!report||!ceremony)return toast('Enter both the report and ceremony times.');const button=document.querySelector('#save-exception');button.disabled=true;button.textContent='Saving…';const {data:recipients,error}=await supabaseClient.rpc('admin_update_detail_times',{target_detail_id:detail.id,new_report_time:report,new_ceremony_time:ceremony});if(error){button.disabled=false;button.textContent='Save exception';return toast(error.message);}for(const recipientId of recipients||[])await deliverNotification({recipientId,eventType:'DETAIL_TIME_UPDATED',entityType:'DETAIL',entityId:detail.id,subject:`DET 607 Flag Detail time updated — ${detail.type}, ${emailDetailDate(detail.date)}`,html:`<p>Your ${detail.type} on <strong>${emailDetailDate(detail.date)}</strong> now reports at ${report}; ceremony is ${ceremony}.</p>`});close();const {data:{session}}=await supabaseClient.auth.getSession();await applySession(session);toast('Time exception saved.');};
+  picker.onchange=()=>{const detail=details.find(item=>item.id===picker.value);document.querySelector('#exception-report').value=detail.reportInput || detail.report;document.querySelector('#exception-ceremony').value=detail.timeInput || detail.time;};
+  document.querySelector('#save-exception').onclick=async()=>{const detail=details.find(item=>item.id===picker.value),report=document.querySelector('#exception-report').value,ceremony=document.querySelector('#exception-ceremony').value;if(!report||!ceremony)return toast('Enter both the report and ceremony times.');const button=document.querySelector('#save-exception');button.disabled=true;button.textContent='Saving…';const {data:recipients,error}=await supabaseClient.rpc('admin_update_detail_times',{target_detail_id:detail.id,new_report_time:report,new_ceremony_time:ceremony});if(error){button.disabled=false;button.textContent='Save exception';return toast(error.message);}for(const recipientId of recipients||[])await deliverNotification({recipientId,eventType:'DETAIL_TIME_UPDATED',entityType:'DETAIL',entityId:detail.id,subject:`DET 607 Flag Detail time updated — ${detail.type}, ${emailDetailDate(detail.date)}`,html:`<p>Your ${detail.type} on <strong>${emailDetailDate(detail.date)}</strong> now reports at ${militaryTime(report)}; ceremony is ${militaryTime(ceremony)}.</p>`});close();const {data:{session}}=await supabaseClient.auth.getSession();await applySession(session);toast('Time exception saved.');};
 }
 
 document.querySelector('#create-detail').onclick = openScheduleException;

@@ -8,6 +8,7 @@
   const isAdmin = () => ['ADMIN', 'SUPER_ADMIN'].includes(profile?.admin_level);
   const isPocLead = () => profile?.cadet_type === 'POC' && !isAdmin();
   const displayStatus = value => ({ PENDING: 'Pending confirmation', ATTENDED: 'Attended', LATE: 'Late', NO_SHOW: 'No show', EXCUSED: 'Excused' })[value] || value;
+  const militaryClock = value => new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(value)).replace(':', '');
   const detailLabel = row => `${new Date(`${row.detail_date}T12:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${row.detail_type === 'REVEILLE' ? 'Reveille' : 'Retreat'}`;
   const toast = message => window.toast ? window.toast(message) : alert(message);
   const isFutureDetail = row => new Date(`${row.detail_date}T12:00`).setHours(0, 0, 0, 0) > new Date().setHours(0, 0, 0, 0);
@@ -35,10 +36,10 @@
       const canCheckIn = own && !row.confirmed_at && !row.self_checked_in_at && checkInIsOpen(row);
       const action = canConfirm(row) && !isFutureDetail(row) ? `<button class="secondary" data-confirm-attendance="${row.assignment_id}">Confirm</button>` : canCheckIn ? `<button class="primary" data-check-in="${row.assignment_id}">Check in</button>` : '';
       const checkInNote = row.self_checked_in_at
-        ? `Checked in ${new Date(row.self_checked_in_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+        ? `Checked in ${militaryClock(row.self_checked_in_at)}`
         : 'No check-in yet';
       const statusLabel = !row.confirmed_at && !row.self_checked_in_at && !checkInIsOpen(row)
-        ? `Check-in opens ${new Date(checkInOpensAt(row)).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+        ? `Check-in opens ${militaryClock(checkInOpensAt(row))}`
         : isFutureDetail(row) && !row.confirmed_at
         ? 'Scheduled — not confirmable yet'
         : row.confirmed_at
