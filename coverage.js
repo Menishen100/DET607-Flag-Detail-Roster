@@ -21,7 +21,7 @@
 
   function requestCard(request, action) {
     const accepted = request.accepted_by_name ? `<p class="muted"><strong>Coverage:</strong> ${text(request.accepted_by_name)}${request.status === 'APPROVED' ? ' (assigned by an administrator)' : ''}</p>` : '';
-    return `<article class="request-card coverage-request-card"><div class="date-pill">${text(kind(request.detail_type))}<small>${text(request.status.replace('_', ' '))}</small></div><div class="card-main"><h3>${text(request.requester_name)} · ${text(dateLabel(request.detail_date))}</h3><p>${text(kind(request.detail_type))} · Report ${text(time(request.report_time))} · Ceremony ${text(time(request.ceremony_time))}</p><p>“${text(request.reason)}”</p>${accepted}</div><div class="card-actions">${action || ''}</div></article>`;
+    return `<article class="request-card coverage-request-card"><div class="date-pill">${text(kind(request.detail_type))}<small>${text(request.status.replace('_', ' '))}</small></div><div class="card-main"><h3>${text(request.requester_name)} · ${text(dateLabel(request.detail_date))}</h3><p>${text(kind(request.detail_type))} · Report ${text(time(request.report_time))} · Ceremony ${text(time(request.ceremony_time))}</p><p>“${text(request.reason)}”</p>${accepted}</div>${action ? `<div class="card-actions">${action}</div>` : ''}</article>`;
   }
 
   function renderCoverageRequests() {
@@ -44,7 +44,7 @@
     const swapOffers = isAdmin()
       ? state.swaps.filter(item => item.requester_id !== currentId && item.status === 'OPEN')
       : state.swaps.filter(item => item.requester_id !== currentId && item.can_accept);
-    const swapCard = (item, action) => `<article class="request-card coverage-request-card"><div class="date-pill">SWAP<small>${text(item.status.replace('_', ' '))}</small></div><div class="card-main"><h3>${text(item.requester_name)} · ${text(dateLabel(item.detail_date))}</h3><p>Offering ${text(kind(item.detail_type))} · ${text(dateLabel(item.detail_date))}. Select one of your own ${text(item.requester_type)} shifts to exchange.</p><p>“${text(item.reason)}”</p></div><div class="card-actions">${action || ''}</div></article>`;
+    const swapCard = (item, action) => `<article class="request-card coverage-request-card"><div class="date-pill">SWAP<small>${text(item.status.replace('_', ' '))}</small></div><div class="card-main"><h3>${text(item.requester_name)} · ${text(dateLabel(item.detail_date))}</h3><p>Offering ${text(kind(item.detail_type))} · ${text(dateLabel(item.detail_date))}. Select one of your own ${text(item.requester_type)} shifts to exchange.</p><p>“${text(item.reason)}”</p></div>${action ? `<div class="card-actions">${action}</div>` : ''}</article>`;
     const mySwapHtml = mySwaps.map(item => swapCard(item, item.status === 'OPEN' ? `<button class="secondary" data-swap-cancel="${item.id}">Cancel swap</button>` : '')).join('');
     const swapOfferHtml = swapOffers.map(item => swapCard(item, item.can_accept ? `<button class="primary" data-swap-accept="${item.id}">Offer a swap</button>` : '<span class="tag">Review only</span>')).join('');
     const coverageHeading = isAdmin() ? 'All open coverage requests' : `Available ${state.profile?.cadet_type || 'cadet'} coverage`;
