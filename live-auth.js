@@ -15,10 +15,11 @@ const invitationMode = () => {
 const inviteOnboardingKey = 'det607-invite-onboarding';
 const isInviteOnboarding = () => sessionStorage.getItem(inviteOnboardingKey) === '1';
 
-function showSetup(email) {
+function showSetup(email, mode = 'invite') {
   authScreen.hidden = false;
   appShell.hidden = true;
-  authForm.innerHTML = `<p class="eyebrow">DET 607 INVITATION</p><h2>Create your password</h2><p class="muted">Set a password for ${email}.</p><label>Email<input value="${email}" readonly></label><label>Password<input id="setup-password" type="password" autocomplete="new-password" required minlength="8"></label><label>Confirm password<input id="setup-confirm" type="password" autocomplete="new-password" required minlength="8"></label><button type="submit">Create account</button>`;
+  const recovering = mode === 'recovery';
+  authForm.innerHTML = `<p class="eyebrow">${recovering ? 'PASSWORD RECOVERY' : 'DET 607 INVITATION'}</p><h2>${recovering ? 'Set a new password' : 'Create your password'}</h2><p class="muted">${recovering ? `Choose a new password for ${email}.` : `Set a password for ${email}.`}</p><label>Email<input value="${email}" readonly></label><label>New password<input id="setup-password" type="password" autocomplete="new-password" required minlength="8"></label><label>Confirm new password<input id="setup-confirm" type="password" autocomplete="new-password" required minlength="8"></label><button type="submit">${recovering ? 'Save new password' : 'Create account'}</button>`;
   authForm.onsubmit = async event => {
     event.preventDefault();
     const password = document.querySelector('#setup-password').value;
@@ -26,7 +27,7 @@ function showSetup(email) {
     if (password.length < 8 || password !== confirm) return authStatus('Use matching passwords with at least 8 characters.', 'error');
     const { error } = await supabaseClient.auth.updateUser({ password });
     if (error) return authStatus(error.message, 'error');
-    sessionStorage.setItem(inviteOnboardingKey, '1');
+    if (!recovering) sessionStorage.setItem(inviteOnboardingKey, '1');
     history.replaceState({}, document.title, location.pathname);
     const { data: { session } } = await supabaseClient.auth.getSession();
     applySession(session);
@@ -460,7 +461,9 @@ async function loadLiveRoster(profile, email) {
 
 async function applySession(session) {
   if (!session) { authScreen.hidden = false; appShell.hidden = true; return; }
-  if (['invite', 'recovery'].includes(invitationMode())) return showSetup(session.user?.email || '');
+  const authAction = invitationMode();
+  if (authAction === 'invite') return showSetup(session.user?.email || '', 'invite');
+  if (authAction === 'recovery') return showSetup(session.user?.email || '', 'recovery');
   authStatus('Checking roster access…');
   const { data: profile, error } = await supabaseClient.rpc('get_my_profile').maybeSingle();
   if (error) {
@@ -486,6 +489,20 @@ authForm.addEventListener('submit', async event => {
   button.disabled = false;
   if (error) return authStatus(error.message, 'error');
   if (data.session) await applySession(data.session);
+});
+
+document.addEventListener('click', async event => {
+  const recoveryButton = event.target.closest('#forgot-password');
+  if (!recoveryButton) return;
+  if (!supabaseClient) return authStatus('The secure connection is unavailable. Refresh and try again.', 'error');
+  const email = document.querySelector('#auth-email')?.value.trim();
+  if (!email) return authStatus('Enter your roster email address, then select Forgot password.', 'error');
+  recoveryButton.disabled = true;
+  authStatus('Sending password recovery email…');
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}/` });
+  recoveryButton.disabled = false;
+  if (error) return authStatus(error.message, 'error');
+  authStatus('If this email is registered, a password recovery link has been sent. Open that link to set a new password.', 'success');
 });
 if (supabaseClient) {
   const inviteCode=new URLSearchParams(location.search).get('code');
