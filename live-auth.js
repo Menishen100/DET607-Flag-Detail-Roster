@@ -23,7 +23,7 @@ function showSetup(email, mode = 'invite') {
   authScreen.hidden = false;
   appShell.hidden = true;
   const recovering = mode === 'recovery';
-  authForm.innerHTML = `<p class="eyebrow">${recovering ? 'PASSWORD RECOVERY' : 'DET 607 INVITATION'}</p><h2>${recovering ? 'Set a new password' : 'Create your password'}</h2><p class="muted">${recovering ? `Choose a new password for ${email}.` : `Set a password for ${email}.`}</p><label>Email<input value="${email}" readonly></label><label>New password<input id="setup-password" type="password" autocomplete="new-password" required minlength="8"></label><label>Confirm new password<input id="setup-confirm" type="password" autocomplete="new-password" required minlength="8"></label><button type="submit">${recovering ? 'Save new password' : 'Create account'}</button>`;
+  authForm.innerHTML = `<p class="eyebrow">${recovering ? 'PASSWORD RECOVERY' : 'DET 607 INVITATION'}</p><h2>${recovering ? 'Set a new password' : 'Create your password'}</h2><p class="muted">${recovering ? `Choose a new password for ${email}.` : `Set a password for ${email}.`}</p><label>Email<input value="${email}" readonly></label><label>New password<span class="password-field"><input id="setup-password" type="password" autocomplete="new-password" required minlength="8"><button class="password-toggle" type="button" data-password-toggle="setup-password" aria-label="Show new password" aria-pressed="false">Show</button></span></label><label>Confirm new password<span class="password-field"><input id="setup-confirm" type="password" autocomplete="new-password" required minlength="8"><button class="password-toggle" type="button" data-password-toggle="setup-confirm" aria-label="Show confirm password" aria-pressed="false">Show</button></span></label><button type="submit">${recovering ? 'Save new password' : 'Create account'}</button>`;
   authForm.onsubmit = async event => {
     event.preventDefault();
     const password = document.querySelector('#setup-password').value;
@@ -489,7 +489,7 @@ authForm.addEventListener('submit', async event => {
   event.preventDefault();
   if (!supabaseClient) return authStatus('The secure connection is unavailable. Refresh and try again.', 'error');
   if (!document.querySelector('#auth-email')) return;
-  const button = authForm.querySelector('button'); button.disabled = true; authStatus('Signing in…');
+  const button = authForm.querySelector('button[type="submit"]'); button.disabled = true; authStatus('Signing in…');
   const { data, error } = await supabaseClient.auth.signInWithPassword({ email: $('#auth-email').value.trim(), password: $('#auth-password').value });
   button.disabled = false;
   if (error) return authStatus(error.message, 'error');
@@ -497,6 +497,17 @@ authForm.addEventListener('submit', async event => {
 });
 
 document.addEventListener('click', async event => {
+  const passwordToggle = event.target.closest('[data-password-toggle]');
+  if (passwordToggle) {
+    const input = document.querySelector(`#${passwordToggle.dataset.passwordToggle}`);
+    if (!input) return;
+    const showing = input.type === 'text';
+    input.type = showing ? 'password' : 'text';
+    passwordToggle.textContent = showing ? 'Show' : 'Hide';
+    passwordToggle.setAttribute('aria-pressed', String(!showing));
+    passwordToggle.setAttribute('aria-label', `${showing ? 'Show' : 'Hide'} password`);
+    return;
+  }
   const recoveryButton = event.target.closest('#forgot-password');
   if (!recoveryButton) return;
   if (!supabaseClient) return authStatus('The secure connection is unavailable. Refresh and try again.', 'error');
