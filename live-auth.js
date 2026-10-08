@@ -10,6 +10,10 @@ window.det607Supabase = supabaseClient;
 const invitationMode = () => {
   const query = new URLSearchParams(location.search);
   const hash = new URLSearchParams(location.hash.slice(1));
+  // A password-recovery link can use either a hash token or the PKCE `code`
+  // flow. Keep an explicit query marker on the redirect so it can never be
+  // mistaken for a new-cadet invitation after Supabase exchanges the code.
+  if (query.get('recovery') === '1' || hash.get('type') === 'recovery' || query.get('type') === 'recovery' || sessionStorage.getItem('det607-password-recovery') === '1') return 'recovery';
   return hash.get('type') || query.get('type') || (query.has('code') || query.has('invite') ? 'invite' : null);
 };
 const inviteOnboardingKey = 'det607-invite-onboarding';
@@ -27,7 +31,8 @@ function showSetup(email, mode = 'invite') {
     if (password.length < 8 || password !== confirm) return authStatus('Use matching passwords with at least 8 characters.', 'error');
     const { error } = await supabaseClient.auth.updateUser({ password });
     if (error) return authStatus(error.message, 'error');
-    if (!recovering) sessionStorage.setItem(inviteOnboardingKey, '1');
+    if (recovering) sessionStorage.removeItem('det607-password-recovery');
+    else sessionStorage.setItem(inviteOnboardingKey, '1');
     history.replaceState({}, document.title, location.pathname);
     const { data: { session } } = await supabaseClient.auth.getSession();
     applySession(session);
@@ -499,7 +504,7 @@ document.addEventListener('click', async event => {
   if (!email) return authStatus('Enter your roster email address, then select Forgot password.', 'error');
   recoveryButton.disabled = true;
   authStatus('Sending password recovery email…');
-  const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}/` });
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}/?recovery=1` });
   recoveryButton.disabled = false;
   if (error) return authStatus(error.message, 'error');
   authStatus('If this email is registered, a password recovery link has been sent. Open that link to set a new password.', 'success');
@@ -507,7 +512,8 @@ document.addEventListener('click', async event => {
 if (supabaseClient) {
   const inviteCode=new URLSearchParams(location.search).get('code');
   (inviteCode?supabaseClient.auth.exchangeCodeForSession(inviteCode):supabaseClient.auth.getSession()).then(({ data: { session }, error })=>{if(error)return authStatus(error.message,'error');applySession(session)});
-  supabaseClient.auth.onAuthStateChange((_event, session) => {
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY') sessionStorage.setItem('det607-password-recovery', '1');
     window.setTimeout(() => applySession(session), 0);
   });
 } else authStatus('The secure connection is unavailable. Refresh and try again.', 'error');
