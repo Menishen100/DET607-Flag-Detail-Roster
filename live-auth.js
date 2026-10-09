@@ -182,7 +182,8 @@ function renderCalendar() {
     const unavailable = isBlocked || isPast;
     const unavailableLabel = isPast ? 'Past date' : 'Unavailable';
     const unavailableReason = isPast ? 'Sign-up closed' : blockedReason;
-    cells.push(`<div class="cal-day ${iso === todayKey ? 'today' : ''} ${isBlocked ? 'blocked-day' : ''} ${isPast ? 'past-day' : ''}"><div class="cal-date"><span class="mobile-weekday">${weekday}</span><span>${day}</span></div>${unavailable ? `<p class="blocked-note"><strong>${unavailableLabel}</strong><span>${escapeRosterText(unavailableReason)}</span></p>${isBlocked && canBlock ? `<button class="text-button block-calendar-date" onclick="unblockScheduleDate('${iso}')">Unblock date</button>` : ''}` : `${detailCards || '<p class="blocked-note">No detail</p>'}${canBlock ? `<button class="text-button block-calendar-date" onclick="blockScheduleDate('${iso}')">Block date</button>` : ''}`}</div>`);
+    const pastAdminContent = `${detailCards || '<p class="blocked-note">No detail</p>'}<p class="blocked-note"><strong>Past date</strong><span>Super Admin management only</span></p>`;
+    cells.push(`<div class="cal-day ${iso === todayKey ? 'today' : ''} ${isBlocked ? 'blocked-day' : ''} ${isPast ? 'past-day' : ''}"><div class="cal-date"><span class="mobile-weekday">${weekday}</span><span>${day}</span></div>${unavailable ? (isPast && canBlock && !isBlocked ? pastAdminContent : `<p class="blocked-note"><strong>${unavailableLabel}</strong><span>${escapeRosterText(unavailableReason)}</span></p>${isBlocked && canBlock ? `<button class="text-button block-calendar-date" onclick="unblockScheduleDate('${iso}')">Unblock date</button>` : ''}`) : `${detailCards || '<p class="blocked-note">No detail</p>'}${canBlock ? `<button class="text-button block-calendar-date" onclick="blockScheduleDate('${iso}')">Block date</button>` : ''}`}</div>`);
   }
 
   document.querySelector('#calendar').innerHTML = cells.join('');
@@ -332,17 +333,17 @@ async function deliverNotification(payload) {
 window.detailModal = async id => {
   const detail = data.details.find(item => String(item.id) === String(id));
   if (!detail) return toast('This flag detail is no longer available.');
+  const superAdmin = window.det607CurrentProfile?.admin_level === 'SUPER_ADMIN';
   if (detail.blocked) {
     const unblock = window.det607CurrentProfile?.admin_level === 'SUPER_ADMIN' ? `<button class="primary" onclick="unblockScheduleDate('${detail.date}')">Unblock date</button>` : '<button class="secondary" onclick="close()">Close</button>';
     return modal(`<p class="eyebrow">${fmtDate(detail.date)}</p><h2>Flag detail unavailable</h2><p>This date is blocked and cannot be selected by cadets or POCs.</p><div class="form-row"><label>Reason</label><p>${escapeRosterText(detail.blockedReason || 'Unavailable')}</p></div><div class="modal-actions">${unblock}</div>`);
   }
-  if (isPastScheduleDate(detail.date)) {
+  if (isPastScheduleDate(detail.date) && !superAdmin) {
     const gmcRoster = detail.cadets.filter(Boolean).map(name => `<div class="detail-row roster-slot"><span>${escapeRosterText(name)}</span></div>`).join('') || '<p class="muted">No GMC cadets were assigned.</p>';
     const pocRoster = detail.poc ? `<div class="detail-row roster-slot"><span>${escapeRosterText(detail.poc)}</span></div>` : '<p class="muted">No POC lead was assigned.</p>';
     return modal(`<p class="eyebrow">${weekdayDetailDate(detail.date)} · ${detail.type}</p><h2>Past flag detail</h2><p>This date has passed. Sign-up and assignment changes are closed.</p><div class="form-row"><label>GMC roster</label>${gmcRoster}</div><div class="form-row"><label>POC lead</label>${pocRoster}</div><div class="modal-actions"><button class="secondary" onclick="close()">Close</button></div>`);
   }
   const staff = ['ADMIN', 'SUPER_ADMIN'].includes(window.det607CurrentProfile?.admin_level);
-  const superAdmin = window.det607CurrentProfile?.admin_level === 'SUPER_ADMIN';
   let gmcs = [], pocs = [], shiftCounts = new Map();
   if (staff) {
     const { data: cadets, error } = await supabaseClient.from('profiles').select('id,full_name,cadet_type').eq('active', true).order('full_name');
