@@ -572,7 +572,7 @@ function openOwnProfile() {
   const profile = window.det607CurrentProfile;
   if (!profile) return toast('Your profile is still loading. Try again in a moment.');
   const levels = [100, 150, 200, 250, 300, 400, 500, 600];
-  const flights = ['Alpha Flight', 'Bravo Flight', 'Charlie Flight', 'Delta Flight', 'POC Flight'];
+  const flights = ['Alpha Flight', 'Bravo Flight', 'Charlie Flight', 'Delta Flight', 'Echo Flight', 'Foxtrot Flight', 'Golf Flight', 'POC Flight'];
   const schools = [['FSU', 'FSU — Fayetteville State University'], ['UNCP', 'UNCP — University of North Carolina at Pembroke'], ['MU', 'MU — Methodist University'], ['FTCC', 'FTCC — Fayetteville Technical Community College'], ['CU', 'CU — Campbell University'], ['OTHER', 'Other']];
   const selectOptions = (items, selected, label) => `<option value="">${label}</option>${items.map(item => { const [value, text] = Array.isArray(item) ? item : [item, item]; return `<option value="${value}" ${value === selected ? 'selected' : ''}>${text}</option>`; }).join('')}`;
   profilePopover.hidden = true;
