@@ -30,6 +30,68 @@ let data=window.det607Data={details:[],blocked:{},requests:[],attendance:[],case
  window.detailModal=id=>{let d=data.details.find(x=>x.id===id);modal(`<p class="eyebrow">${fmtDate(d.date).toUpperCase()} · ${d.type.toUpperCase()}</p><h2>${d.type} flag detail</h2><p>Report at ${d.report}; ceremony at ${d.time}. Three cadets and one POC lead are required.</p><div class="form-row"><label>Cadet roster</label><div>${d.cadets.map((x,i)=>`<div class="detail-row" style="margin-bottom:6px"><span class="tiny-avatar ${x?'':'empty'}">${initials(x)}</span><span>${x||'Open cadet position '+(i+1)}</span></div>`).join('')}</div></div><div class="form-row"><label>POC lead</label><div class="detail-row"><span class="tiny-avatar poc ${d.poc?'':'empty'}">${initials(d.poc)||'P'}</span><span>${d.poc||'Open POC lead position'}</span></div></div><div class="modal-actions"><button class="secondary" onclick="editDetail(${id})">Edit times</button><button class="primary" onclick="signup(${id})">Assign / sign up</button></div>`)};
  window.signup=id=>{let d=data.details.find(x=>x.id===id),position=d.cadets.findIndex(x=>!x)>=0?'cadet':'poc';modal(`<p class="eyebrow">ASSIGNMENT CHECK</p><h2>Fill an open position</h2><p>This demonstrates server-side eligibility and overlap validation. The selected cadet will receive an assignment email after saving.</p><div class="form-row"><label>Cadet</label><select id="cadet-select"><option>Cadet Alex Morgan (GMC)</option><option>Cadet Taylor Reed (GMC)</option><option>Cadet Capt. D. Brooks (POC)</option></select></div><div class="form-row"><label>Position</label><select id="position-select"><option value="cadet" ${position==='cadet'?'selected':''}>Cadet position</option><option value="poc" ${position==='poc'?'selected':''}>POC lead position</option></select></div><div class="modal-actions"><button class="secondary" onclick="close()">Cancel</button><button class="primary" onclick="confirmSignup(${id})">Validate & assign</button></div>`)};
  window.confirmSignup=id=>{let d=data.details.find(x=>x.id===id),name=$('#cadet-select').value.replace(/ \(.*\)/,''),pos=$('#position-select').value,conflict=data.details.find(x=>x.id!==id&&x.date===d.date&&x.type===d.type&&[...x.cadets,x.poc].includes(name));if(conflict)return toast(`${name} already has ${conflict.type} on ${fmtDate(conflict.date)}. Assignment blocked.`);if(pos==='poc'&&!name.includes('Capt.'))return toast('Only a POC may fill the POC lead position.');if(pos==='cadet'){let n=d.cadets.findIndex(x=>!x);if(n<0)return toast('No cadet position is open.');d.cadets[n]=name}else{if(d.poc)return toast('The POC lead position is already filled.');d.poc=name}d.status=openPositions(d)?'open':'ready';close();render();toast(`${name} assigned. Assignment email queued.`)};
+
+// A Super Admin has an organization-wide command view. Normalize the stored
+// access value so legacy values such as "SUPER ADMIN" cannot fall back to the
+// personal cadet dashboard.
+const det607CadetDashboard = renderDashboard;
+renderDashboard = function renderOrganizationDashboard() {
+  const profile = window.det607CurrentProfile || {};
+  const access = String(profile.admin_level || profile.role || 'NONE').trim().toUpperCase().replace(/[\s-]+/g, '_');
+  if (!['ADMIN', 'SUPER_ADMIN'].includes(access)) return det607CadetDashboard();
+
+  const all = data.details || [];
+  const today = window.det607PortalToday();
+  const activeDetails = all.filter(detail => !detail.blocked && detail.date >= today);
+  const totalSlots = activeDetails.length * 4;
+  const openSlots = activeDetails.reduce((total, detail) => total + openPositions(detail), 0);
+  const filledSlots = totalSlots - openSlots;
+  const coverage = totalSlots ? Math.round((filledSlots / totalSlots) * 100) : 0;
+  const todayDetails = activeDetails.filter(detail => detail.date === today);
+  const upcoming = activeDetails.filter(detail => detail.date > today).sort((left, right) => left.date.localeCompare(right.date) || left.type.localeCompare(right.type));
+  const requests = data.requests || [];
+  const cases = data.cases || [];
+  const actionCount = requests.length + cases.length;
+
+  const notice = $('.notice');
+  const noticeTitle = notice?.querySelector('strong');
+  const noticeCopy = notice?.querySelector('p');
+  const noticeAction = notice?.querySelector('button');
+  if (noticeTitle) noticeTitle.textContent = 'Organization flag-detail status';
+  if (noticeCopy) noticeCopy.textContent = `${activeDetails.length} upcoming published detail${activeDetails.length === 1 ? '' : 's'} across DET 607. Monitor staffing, requests, attendance, and counseling actions.`;
+  if (noticeAction) { noticeAction.textContent = 'Manage schedule →'; noticeAction.dataset.viewTarget = 'schedule'; }
+
+  const todayTitle = $('#today-title');
+  if (todayTitle) todayTitle.textContent = new Date(`${today}T12:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const labels = $$('.metrics article span');
+  const values = $$('.metrics article strong');
+  const descriptions = $$('.metrics article small');
+  const links = $$('.metrics article a');
+  if (labels[0]) labels[0].textContent = 'Organization coverage';
+  if (values[0]) values[0].textContent = `${coverage}%`;
+  if (descriptions[0]) descriptions[0].textContent = totalSlots ? `${filledSlots} of ${totalSlots} upcoming positions filled` : 'No upcoming published positions';
+  const meter = $('#coverage-meter'); if (meter) meter.style.width = `${coverage}%`;
+  if (labels[1]) labels[1].textContent = 'Open positions';
+  if (values[1]) values[1].textContent = openSlots;
+  if (descriptions[1]) descriptions[1].textContent = 'across all upcoming published details';
+  if (links[1]) { links[1].textContent = 'Fill open positions →'; links[1].dataset.viewTarget = 'open'; }
+  if (labels[2]) labels[2].textContent = 'Upcoming details';
+  if (values[2]) values[2].textContent = activeDetails.length;
+  if (descriptions[2]) descriptions[2].textContent = todayDetails.length ? `${todayDetails.length} scheduled today` : 'none scheduled today';
+  if (links[2]) { links[2].textContent = 'View schedule →'; links[2].dataset.viewTarget = 'schedule'; }
+  if (labels[3]) labels[3].textContent = 'Actions requiring review';
+  if (values[3]) values[3].textContent = actionCount;
+  if (descriptions[3]) descriptions[3].textContent = `${requests.length} request${requests.length === 1 ? '' : 's'} · ${cases.length} counseling case${cases.length === 1 ? '' : 's'}`;
+  if (links[3]) { links[3].textContent = 'Review actions →'; links[3].dataset.viewTarget = requests.length ? 'requests' : 'counseling'; }
+
+  $('#open-number').textContent = openSlots;
+  $('#open-count').textContent = openSlots;
+  $('#request-count').textContent = requests.length;
+  $('#case-count').textContent = cases.length;
+  $('#review-number').textContent = actionCount;
+  $('#today-details').innerHTML = todayDetails.map(detail => `<div class="detail-row"><span class="detail-type">${detail.type}</span><span class="detail-time">Report ${detail.report}<br><b>${detail.time} ceremony</b></span><div class="detail-people">${people(detail)}</div><button class="secondary" onclick="detailModal('${detail.id}')">Manage</button></div>`).join('') || '<p class="muted">No flag details are scheduled for today.</p>';
+  $('#upcoming').innerHTML = upcoming.slice(0, 4).map(detail => `<div class="timeline-item"><div class="date-box">${fmtDate(detail.date).split(' ')[1]}<small>${fmtDate(detail.date).split(' ')[0]}</small></div><div><strong>${detail.type} · ${detail.time}</strong><p>${openPositions(detail) ? `${openPositions(detail)} position${openPositions(detail) === 1 ? '' : 's'} open` : 'Fully staffed'} · ${detail.poc || 'POC lead needed'}</p></div></div>`).join('') || '<p class="muted">No upcoming flag details are published.</p>';
+};
  window.editDetail=id=>{let d=data.details.find(x=>x.id===id);modal(`<p class="eyebrow">TIME CHANGE</p><h2>Update detail time</h2><p>Every assigned cadet and the POC lead will receive the changed time by email.</p><div class="form-row"><label>Report time</label><input id="report" type="time" value="${d.report}"></div><div class="form-row"><label>Ceremony time</label><input id="time" type="time" value="${d.time}"></div><div class="modal-actions"><button class="primary" onclick="saveTime(${id})">Save & notify</button></div>`)};
  window.saveTime=id=>{let d=data.details.find(x=>x.id===id);d.report=$('#report').value;d.time=$('#time').value;close();render();toast('Time updated. Assignee email notifications queued.')};
  window.attendanceModal=cadet=>modal(`<p class="eyebrow">ATTENDANCE RECORD</p><h2>${cadet}</h2><div class="form-row"><label>Attendance status</label><select id="attendance-status"><option value="attended">Attended</option><option value="late">Late</option><option value="no-show">Did not attend / no-show</option><option value="excused">Excused</option></select></div><div class="form-row"><label>POC note</label><textarea id="attendance-note" placeholder="Facts only; include any action taken."></textarea></div><div class="modal-actions"><button class="primary" onclick="saveAttendance('${cadet}')">Save record</button></div>`);
