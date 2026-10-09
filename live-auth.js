@@ -482,7 +482,7 @@ async function loadLiveRoster(profile, email) {
   const visibleMonth = selectedMonthExists
     ? new Date(`${selectedMonthKey}-01T12:00`)
     : (mapped[0]?.date ? new Date(mapped[0].date + 'T12:00') : new Date());
-  month = visibleMonth.getMonth(); year = visibleMonth.getFullYear(); render(); setPortalToday(); syncScheduleMonthPicker(); await window.loadCoverageRequests?.(profile);
+  month = visibleMonth.getMonth(); year = visibleMonth.getFullYear(); render(); setPortalToday(); syncScheduleMonthPicker(); await window.loadCoverageRequests?.(profile); window.det607RenderOrganizationDashboard?.();
 }
 
 async function applySession(session) {

@@ -52,13 +52,15 @@ renderDashboard = function renderOrganizationDashboard() {
   const requests = data.requests || [];
   const cases = data.cases || [];
   const actionCount = requests.length + cases.length;
+  const personalUpcoming = all.filter(detail => (detail.cadetIds || []).includes(profile.id) || detail.pocId === profile.id)
+    .filter(detail => detail.date >= today && !detail.blocked);
 
   const notice = $('.notice');
   const noticeTitle = notice?.querySelector('strong');
   const noticeCopy = notice?.querySelector('p');
   const noticeAction = notice?.querySelector('button');
   if (noticeTitle) noticeTitle.textContent = 'Organization flag-detail status';
-  if (noticeCopy) noticeCopy.textContent = `${activeDetails.length} upcoming published detail${activeDetails.length === 1 ? '' : 's'} across DET 607. Monitor staffing, requests, attendance, and counseling actions.`;
+  if (noticeCopy) noticeCopy.textContent = `${activeDetails.length} upcoming published detail${activeDetails.length === 1 ? '' : 's'} across DET 607. Your account has ${personalUpcoming.length} upcoming assigned detail${personalUpcoming.length === 1 ? '' : 's'}.`;
   if (noticeAction) { noticeAction.textContent = 'Manage schedule →'; noticeAction.dataset.viewTarget = 'schedule'; }
 
   const todayTitle = $('#today-title');
@@ -92,6 +94,7 @@ renderDashboard = function renderOrganizationDashboard() {
   $('#today-details').innerHTML = todayDetails.map(detail => `<div class="detail-row"><span class="detail-type">${detail.type}</span><span class="detail-time">Report ${detail.report}<br><b>${detail.time} ceremony</b></span><div class="detail-people">${people(detail)}</div><button class="secondary" onclick="detailModal('${detail.id}')">Manage</button></div>`).join('') || '<p class="muted">No flag details are scheduled for today.</p>';
   $('#upcoming').innerHTML = upcoming.slice(0, 4).map(detail => `<div class="timeline-item"><div class="date-box">${fmtDate(detail.date).split(' ')[1]}<small>${fmtDate(detail.date).split(' ')[0]}</small></div><div><strong>${detail.type} · ${detail.time}</strong><p>${openPositions(detail) ? `${openPositions(detail)} position${openPositions(detail) === 1 ? '' : 's'} open` : 'Fully staffed'} · ${detail.poc || 'POC lead needed'}</p></div></div>`).join('') || '<p class="muted">No upcoming flag details are published.</p>';
 };
+window.det607RenderOrganizationDashboard = () => renderDashboard();
  window.editDetail=id=>{let d=data.details.find(x=>x.id===id);modal(`<p class="eyebrow">TIME CHANGE</p><h2>Update detail time</h2><p>Every assigned cadet and the POC lead will receive the changed time by email.</p><div class="form-row"><label>Report time</label><input id="report" type="time" value="${d.report}"></div><div class="form-row"><label>Ceremony time</label><input id="time" type="time" value="${d.time}"></div><div class="modal-actions"><button class="primary" onclick="saveTime(${id})">Save & notify</button></div>`)};
  window.saveTime=id=>{let d=data.details.find(x=>x.id===id);d.report=$('#report').value;d.time=$('#time').value;close();render();toast('Time updated. Assignee email notifications queued.')};
  window.attendanceModal=cadet=>modal(`<p class="eyebrow">ATTENDANCE RECORD</p><h2>${cadet}</h2><div class="form-row"><label>Attendance status</label><select id="attendance-status"><option value="attended">Attended</option><option value="late">Late</option><option value="no-show">Did not attend / no-show</option><option value="excused">Excused</option></select></div><div class="form-row"><label>POC note</label><textarea id="attendance-note" placeholder="Facts only; include any action taken."></textarea></div><div class="modal-actions"><button class="primary" onclick="saveAttendance('${cadet}')">Save record</button></div>`);
