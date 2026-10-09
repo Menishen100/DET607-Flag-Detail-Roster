@@ -117,7 +117,7 @@ async function sendAssignmentNotification(recipientId, detail, action = 'assigne
 // The sidebar badge and dashboard metric must be based on the live roster,
 // not the original demo state. Count actual unfilled GMC and POC positions.
 function refreshOpenPositionIndicators() {
-  const activeDetails = (data?.details || []).filter(detail => !detail.blocked);
+  const activeDetails = (data?.details || []).filter(detail => !detail.blocked && !isPastScheduleDate(detail.date));
   const openPositionsTotal = activeDetails.reduce((total, detail) => total + openPositions(detail), 0);
   const openBadge = document.querySelector('#open-count');
   const openMetric = document.querySelector('#open-number');
@@ -129,6 +129,18 @@ function escapeRosterText(value) {
   return String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 }
 
+function easternDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(date);
+  const value = type => parts.find(part => part.type === type)?.value;
+  return `${value('year')}-${value('month')}-${value('day')}`;
+}
+
+function isPastScheduleDate(detailDate) {
+  return String(detailDate || '') < easternDateKey();
+}
+
 function setPortalToday(){const date=new Date();document.querySelector('#today-label').textContent=`${new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'long',month:'long',day:'numeric',year:'numeric'}).format(date)} · DET 607 operations`;}
 
 // Replace the demo calendar renderer with a live monthly roster view. Staff can
@@ -138,8 +150,7 @@ function renderCalendar() {
   const last = new Date(year, month + 1, 0);
   const cells = ['Mon', 'Tue', 'Wed', 'Thu'].map(day => `<div class="day-head">${day}</div>`);
   const selectedMonth = `${year}-${String(month + 1).padStart(2, '0')}`;
-  const today = new Date();
-  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const todayKey = easternDateKey();
   const canBlock = window.det607CurrentProfile?.admin_level === 'SUPER_ADMIN';
   const monthDetails = data.details.filter(detail => detail.date.startsWith(selectedMonth));
   const firstOperationalDate = new Date(year, month, 1);
@@ -161,13 +172,17 @@ function renderCalendar() {
     const blockedDetail = details.find(detail => detail.blocked === true || detail.blocked === 'true' || detail.status === 'blocked');
     const isBlocked = Boolean(blockedDetail) || Boolean(data.blocked[iso]);
     const blockedReason = blockedDetail?.blockedReason || data.blocked[iso] || 'Unavailable';
+    const isPast = isPastScheduleDate(iso);
     const detailCards = details.map(detail => {
       const remainingGmc = detail.cadets.filter(name => !name).length;
       const pocStatus = detail.poc ? 'POC assigned' : 'POC open';
       const typeClass = detail.type === 'Reveille' ? 'reveille-detail' : 'retreat-detail';
       return `<div class="mini-detail ${typeClass} ${detail.status === 'ready' ? 'ready-card' : ''}" onclick="detailModal('${detail.id}')"><strong>${escapeRosterText(detail.type)} · ${escapeRosterText(detail.time)}</strong><span>${remainingGmc} GMC open · ${pocStatus}</span></div>`;
     }).join('');
-    cells.push(`<div class="cal-day ${iso === todayKey ? 'today' : ''} ${isBlocked ? 'blocked-day' : ''}"><div class="cal-date"><span class="mobile-weekday">${weekday}</span><span>${day}</span></div>${isBlocked ? `<p class="blocked-note"><strong>Unavailable</strong><span>${escapeRosterText(blockedReason)}</span></p>${canBlock ? `<button class="text-button block-calendar-date" onclick="unblockScheduleDate('${iso}')">Unblock date</button>` : ''}` : `${detailCards || '<p class="blocked-note">No detail</p>'}${canBlock ? `<button class="text-button block-calendar-date" onclick="blockScheduleDate('${iso}')">Block date</button>` : ''}`}</div>`);
+    const unavailable = isBlocked || isPast;
+    const unavailableLabel = isPast ? 'Past date' : 'Unavailable';
+    const unavailableReason = isPast ? 'Sign-up closed' : blockedReason;
+    cells.push(`<div class="cal-day ${iso === todayKey ? 'today' : ''} ${isBlocked ? 'blocked-day' : ''} ${isPast ? 'past-day' : ''}"><div class="cal-date"><span class="mobile-weekday">${weekday}</span><span>${day}</span></div>${unavailable ? `<p class="blocked-note"><strong>${unavailableLabel}</strong><span>${escapeRosterText(unavailableReason)}</span></p>${isBlocked && canBlock ? `<button class="text-button block-calendar-date" onclick="unblockScheduleDate('${iso}')">Unblock date</button>` : ''}` : `${detailCards || '<p class="blocked-note">No detail</p>'}${canBlock ? `<button class="text-button block-calendar-date" onclick="blockScheduleDate('${iso}')">Block date</button>` : ''}`}</div>`);
   }
 
   document.querySelector('#calendar').innerHTML = cells.join('');
@@ -216,7 +231,7 @@ function renderOpen() {
   const selectedMonth = scheduleMonthValue();
   const monthLabel = new Date(`${selectedMonth}-01T12:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const publishedForMonth = data.details.filter(detail => detail.date.startsWith(selectedMonth));
-  const vacancies = publishedForMonth.filter(detail => !detail.blocked && openPositions(detail));
+  const vacancies = publishedForMonth.filter(detail => !detail.blocked && !isPastScheduleDate(detail.date) && openPositions(detail));
   if (!publishedForMonth.length) {
     board.innerHTML = `<p class="muted">No published schedule exists for ${escapeRosterText(monthLabel)}.</p>`;
     return;
@@ -320,6 +335,11 @@ window.detailModal = async id => {
   if (detail.blocked) {
     const unblock = window.det607CurrentProfile?.admin_level === 'SUPER_ADMIN' ? `<button class="primary" onclick="unblockScheduleDate('${detail.date}')">Unblock date</button>` : '<button class="secondary" onclick="close()">Close</button>';
     return modal(`<p class="eyebrow">${fmtDate(detail.date)}</p><h2>Flag detail unavailable</h2><p>This date is blocked and cannot be selected by cadets or POCs.</p><div class="form-row"><label>Reason</label><p>${escapeRosterText(detail.blockedReason || 'Unavailable')}</p></div><div class="modal-actions">${unblock}</div>`);
+  }
+  if (isPastScheduleDate(detail.date)) {
+    const gmcRoster = detail.cadets.filter(Boolean).map(name => `<div class="detail-row roster-slot"><span>${escapeRosterText(name)}</span></div>`).join('') || '<p class="muted">No GMC cadets were assigned.</p>';
+    const pocRoster = detail.poc ? `<div class="detail-row roster-slot"><span>${escapeRosterText(detail.poc)}</span></div>` : '<p class="muted">No POC lead was assigned.</p>';
+    return modal(`<p class="eyebrow">${weekdayDetailDate(detail.date)} · ${detail.type}</p><h2>Past flag detail</h2><p>This date has passed. Sign-up and assignment changes are closed.</p><div class="form-row"><label>GMC roster</label>${gmcRoster}</div><div class="form-row"><label>POC lead</label>${pocRoster}</div><div class="modal-actions"><button class="secondary" onclick="close()">Close</button></div>`);
   }
   const staff = ['ADMIN', 'SUPER_ADMIN'].includes(window.det607CurrentProfile?.admin_level);
   const superAdmin = window.det607CurrentProfile?.admin_level === 'SUPER_ADMIN';
@@ -606,6 +626,7 @@ window.signup = async detailId => {
   const detail = data.details.find(item => item.id === detailId);
   if (!profile || !detail) return typeof toast === 'function' && toast('This detail is no longer available. Refresh and try again.');
   if (detail.blocked) return toast(`This flag detail is unavailable: ${detail.blockedReason || 'Blocked date'}.`);
+  if (isPastScheduleDate(detail.date)) return toast('This flag detail is in the past and can no longer be selected.');
   const isPoc = profile.cadet_type === 'POC';
   const slotLabel = isPoc ? 'POC lead' : 'Cadet';
   const alreadySelected = detailIsSelectedByProfile(detail, profile);

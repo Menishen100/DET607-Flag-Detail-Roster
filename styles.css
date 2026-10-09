@@ -98,6 +98,16 @@
   background: #fff4e9;
 }
 
+/* Past dates remain visible for accountability, but are clearly closed to sign-up. */
+.cal-day.past-day {
+  background: #edf0f2;
+}
+
+.cal-day.past-day .cal-date,
+.cal-day.past-day .blocked-note {
+  color: #697783;
+}
+
 .monthly-roster-card.reveille-roster .eyebrow,
 .detail-card.reveille-open .date-pill {
   color: #17649c;
