@@ -117,7 +117,8 @@ async function sendAssignmentNotification(recipientId, detail, action = 'assigne
 // The sidebar badge and dashboard metric must be based on the live roster,
 // not the original demo state. Count actual unfilled GMC and POC positions.
 function refreshOpenPositionIndicators() {
-  const activeDetails = (data?.details || []).filter(detail => !detail.blocked && !isPastScheduleDate(detail.date));
+  const selectedMonth = scheduleMonthValue();
+  const activeDetails = (data?.details || []).filter(detail => detail.date.startsWith(selectedMonth) && !detail.blocked && !isPastScheduleDate(detail.date));
   const openPositionsTotal = activeDetails.reduce((total, detail) => total + openPositions(detail), 0);
   const openBadge = document.querySelector('#open-count');
   const openMetric = document.querySelector('#open-number');
@@ -474,14 +475,11 @@ async function loadLiveRoster(profile, email) {
   document.querySelector('#page-title').textContent = window.det607DashboardGreeting
     ? window.det607DashboardGreeting()
     : `Welcome, ${displayName}.`;
-  // Keep the month the Super Admin selected visible after publishing. Older
-  // behavior always jumped back to the first published month (usually
-  // September), making newly published templates appear to be missing.
-  const selectedMonthKey = scheduleMonthValue();
-  const selectedMonthExists = mapped.some(detail => detail.date.startsWith(selectedMonthKey));
-  const visibleMonth = selectedMonthExists
-    ? new Date(`${selectedMonthKey}-01T12:00`)
-    : (mapped[0]?.date ? new Date(mapped[0].date + 'T12:00') : new Date());
+  // A fresh portal visit starts on the current local month. Once the user
+  // chooses a month, keep that choice while live data refreshes after edits.
+  const savedMonth = sessionStorage.getItem('det607-selected-schedule-month');
+  const selectedMonthKey = window.det607SelectedScheduleMonth || savedMonth || easternDateKey().slice(0, 7);
+  const visibleMonth = new Date(`${selectedMonthKey}-01T12:00`);
   month = visibleMonth.getMonth(); year = visibleMonth.getFullYear(); render(); setPortalToday(); syncScheduleMonthPicker(); await window.loadCoverageRequests?.(profile); window.det607RenderOrganizationDashboard?.();
 }
 
@@ -677,6 +675,8 @@ function selectScheduleMonth(value) {
   const selected = new Date(`${monthKey}T12:00`);
   year = selected.getFullYear();
   month = selected.getMonth();
+  window.det607SelectedScheduleMonth = scheduleMonthValue();
+  sessionStorage.setItem('det607-selected-schedule-month', window.det607SelectedScheduleMonth);
   renderCalendar();
   renderOpen();
   syncScheduleMonthPicker();
@@ -742,6 +742,8 @@ document.querySelector('#open-month').onchange = event => selectScheduleMonth(ev
 document.querySelector('#previous-month').onclick = () => {
   month -= 1;
   if (month < 0) { month = 11; year -= 1; }
+  window.det607SelectedScheduleMonth = scheduleMonthValue();
+  sessionStorage.setItem('det607-selected-schedule-month', window.det607SelectedScheduleMonth);
   renderCalendar();
   renderOpen();
   syncScheduleMonthPicker();
@@ -749,11 +751,20 @@ document.querySelector('#previous-month').onclick = () => {
 document.querySelector('#next-month').onclick = () => {
   month += 1;
   if (month > 11) { month = 0; year += 1; }
+  window.det607SelectedScheduleMonth = scheduleMonthValue();
+  sessionStorage.setItem('det607-selected-schedule-month', window.det607SelectedScheduleMonth);
   renderCalendar();
   renderOpen();
   syncScheduleMonthPicker();
 };
 syncScheduleMonthPicker();
+window.det607RefreshSelectedMonth = () => {
+  renderCalendar();
+  renderOpen();
+  syncScheduleMonthPicker();
+  refreshOpenPositionIndicators();
+  window.det607RenderOrganizationDashboard?.();
+};
 
 async function openSuperAdminPlacement() {
   const profile = window.det607CurrentProfile;
