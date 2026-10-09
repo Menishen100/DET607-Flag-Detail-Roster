@@ -462,7 +462,7 @@ async function loadLiveRoster(profile, email) {
   const displayName = profile.full_name || 'Cadet';
   const initials = displayName.split(/\s+/).filter(Boolean).map(name => name[0]).join('').slice(0, 2).toUpperCase();
   const classification = profile.cadet_type || (profile.role === 'POC' ? 'POC' : 'GMC');
-  const access = profile.admin_level && profile.admin_level !== 'NONE' ? ` · ${profile.admin_level.replace('_', ' ')}` : '';
+  const access = profile.admin_level === 'SUPER_ADMIN' ? ' · Super Admin' : profile.admin_level === 'ADMIN' ? ' · Admin' : ' · User';
   const profileRole = `${classification}${access}`;
   document.querySelector('.user-card strong').textContent = displayName;
   document.querySelector('.user-card small').textContent = profileRole;
