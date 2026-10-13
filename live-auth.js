@@ -475,10 +475,9 @@ async function loadLiveRoster(profile, email) {
   document.querySelector('#page-title').textContent = window.det607DashboardGreeting
     ? window.det607DashboardGreeting()
     : `Welcome, ${displayName}.`;
-  // A fresh portal visit starts on the current local month. Once the user
-  // chooses a month, keep that choice while live data refreshes after edits.
-  const savedMonth = sessionStorage.getItem('det607-selected-schedule-month');
-  const selectedMonthKey = window.det607SelectedScheduleMonth || savedMonth || easternDateKey().slice(0, 7);
+  // Every fresh portal visit starts on the current local month. A choice made
+  // during this visit remains visible while live data refreshes after edits.
+  const selectedMonthKey = window.det607SelectedScheduleMonth || easternDateKey().slice(0, 7);
   const visibleMonth = new Date(`${selectedMonthKey}-01T12:00`);
   month = visibleMonth.getMonth(); year = visibleMonth.getFullYear(); render(); setPortalToday(); syncScheduleMonthPicker(); await window.loadCoverageRequests?.(profile); window.det607RenderOrganizationDashboard?.();
 }
@@ -676,7 +675,6 @@ function selectScheduleMonth(value) {
   year = selected.getFullYear();
   month = selected.getMonth();
   window.det607SelectedScheduleMonth = scheduleMonthValue();
-  sessionStorage.setItem('det607-selected-schedule-month', window.det607SelectedScheduleMonth);
   renderCalendar();
   renderOpen();
   syncScheduleMonthPicker();
@@ -743,7 +741,6 @@ document.querySelector('#previous-month').onclick = () => {
   month -= 1;
   if (month < 0) { month = 11; year -= 1; }
   window.det607SelectedScheduleMonth = scheduleMonthValue();
-  sessionStorage.setItem('det607-selected-schedule-month', window.det607SelectedScheduleMonth);
   renderCalendar();
   renderOpen();
   syncScheduleMonthPicker();
@@ -752,7 +749,6 @@ document.querySelector('#next-month').onclick = () => {
   month += 1;
   if (month > 11) { month = 0; year += 1; }
   window.det607SelectedScheduleMonth = scheduleMonthValue();
-  sessionStorage.setItem('det607-selected-schedule-month', window.det607SelectedScheduleMonth);
   renderCalendar();
   renderOpen();
   syncScheduleMonthPicker();
