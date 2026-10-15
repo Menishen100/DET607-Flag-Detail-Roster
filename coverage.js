@@ -65,7 +65,7 @@
     state.requests = coverageResult.data || [];
     state.swaps = swapResult.data || [];
     window.det607CoverageRequests = state.requests;
-    const myId = currentId();
+    const myId = state.profile?.id;
     const eligibleCoverage = state.requests.filter(item => item.requester_id !== myId && item.can_accept).length;
     const eligibleSwaps = state.swaps.filter(item => item.requester_id !== myId && item.can_accept).length;
     const pendingCoverage = state.requests.filter(item => item.requester_id === myId && item.status === 'OPEN').length;
