@@ -183,5 +183,21 @@
 .mobile-menu-toggle,.mobile-nav-backdrop{display:none}
 @media(max-width:720px){.mobile-menu-toggle{display:inline-flex;align-items:center;justify-content:center}.sidebar{position:fixed;z-index:40;inset:0 auto 0 0;width:min(280px,84vw);height:100dvh;padding:24px 16px;transform:translateX(-105%);transition:transform .22s ease;overflow-y:auto;box-shadow:8px 0 24px #102a4340}.sidebar nav{display:grid;overflow:visible}.sidebar .nav{white-space:normal}.side-bottom{display:block;position:relative;margin-top:auto}.mobile-nav-open .sidebar{transform:translateX(0)}.mobile-nav-backdrop{position:fixed;z-index:35;inset:0;width:100%;height:100%;padding:0;border:0;background:#102a4366}.mobile-nav-open .mobile-nav-backdrop{display:block}.mobile-nav-open{overflow:hidden}main{margin-left:0}.header-actions{gap:8px}.mobile-nav-open .profile-popover{position:static;margin-top:8px}.mobile-nav-open .user-card{padding:12px 4px}}
 
+/* On phones, preserve the DET 607 identity and navigation at the top of the
+   screen while the schedule scrolls. */
+.mobile-app-header{display:none}
+@media(max-width:720px){
+  main{padding:0 16px 24px}
+  .mobile-app-header{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 -16px 22px;padding:11px 16px;background:var(--navy);box-shadow:0 3px 12px rgba(16,42,67,.22)}
+  .mobile-app-brand{display:flex;align-items:center;gap:9px;min-width:0;color:#fff}
+  .mobile-app-brand img{width:38px;height:38px;object-fit:contain;flex:0 0 auto}
+  .mobile-app-brand strong,.mobile-app-brand small{display:block}
+  .mobile-app-brand strong{font-size:15px;letter-spacing:.1em}
+  .mobile-app-brand small{margin-top:2px;color:#b9d0e2;font-size:9px}
+  .mobile-app-header .mobile-menu-toggle{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;padding:8px 10px;border:1px solid rgba(255,255,255,.38);border-radius:6px;background:rgba(255,255,255,.1);color:#fff;font:700 11px Manrope;cursor:pointer}
+  .mobile-app-header .mobile-menu-toggle:hover{background:rgba(255,255,255,.2)}
+  header{margin-bottom:22px}
+}
+
 /* Coverage and swap requests use a compact, readable phone layout. */
 @media(max-width:720px){.coverage-request-card{display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:start;gap:12px;padding:16px}.coverage-request-card .date-pill{min-width:0;padding:0 12px 0 0;align-self:stretch}.coverage-request-card .card-main{min-width:0}.coverage-request-card .card-main h3{overflow-wrap:anywhere;font-size:14px;line-height:1.35}.coverage-request-card .card-main p{font-size:12px;line-height:1.5}.coverage-request-card .card-actions{grid-column:1/-1;min-width:0;width:100%}.coverage-request-card .card-actions button{width:100%}.coverage-section>h3{font-size:17px}.section-heading{align-items:flex-start}.section-heading .primary{flex:0 0 auto}}
