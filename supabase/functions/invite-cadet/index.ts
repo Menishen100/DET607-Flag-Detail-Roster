@@ -22,8 +22,17 @@ Deno.serve(async request=>{
  if(inviteError||!invited.user||!invited.properties?.action_link)return new Response(JSON.stringify({error:inviteError?.message||'Invite could not be created'}),{status:400,headers});
  const {error:profileError}=await userClient.rpc('admin_create_invited_cadet_profile',{target_id:invited.user.id,new_name:String(fullName).trim(),new_email:normalizedEmail,new_cadet_type:cadetType});
  if(profileError)return new Response(JSON.stringify({error:profileError.message}),{status:500,headers});
+ const properties=invited.properties as Record<string,unknown>;
+ // Send the cadet to the portal with the one-time token directly. This avoids
+ // email-client redirect handling that can otherwise drop the authenticated
+ // session and strand a new GMC on the standard sign-in form.
+ const tokenHash=typeof properties.hashed_token==='string'?properties.hashed_token:'';
+ const verificationType=properties.verification_type==='recovery'?'recovery':'invite';
+ const setupLink=tokenHash
+   ? `https://det607flagdetail.com/?invite=1&token_hash=${encodeURIComponent(tokenHash)}&type=${verificationType}`
+   : String(invited.properties.action_link);
  const accountGuidance=cadetType==='CADRE'?'After onboarding, Cadre accounts can review published operations. Flag-detail self-signup is reserved for eligible GMC and POC cadets. Administrator access, when granted, is managed by DET 607.':'After onboarding, you can view published schedules, select eligible flag-detail positions, check in for your assigned details, and review your counseling records.';
- const emailResponse=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${Deno.env.get('RESEND_API_KEY')}`,'Content-Type':'application/json'},body:JSON.stringify({from:'DET 607 Flag Detail <noreply@mail.det607flagdetail.com>',to:[normalizedEmail],subject:'You are invited to DET 607 Flag Detail Management',html:`<h2>Welcome to DET 607 Flag Detail Management</h2><p>Hello ${String(fullName).trim()},</p><p>You have been invited to join the DET 607 flag-detail roster as <strong>${cadetType}</strong>.</p><p>Use the secure link below to create your password, then complete your profile with your phone number, class level, and school.</p><p><a href="${invited.properties.action_link}">Create your account</a></p><p>${accountGuidance}</p><p>If you were not expecting this invitation, you may disregard this email.</p>`})});
+ const emailResponse=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${Deno.env.get('RESEND_API_KEY')}`,'Content-Type':'application/json'},body:JSON.stringify({from:'DET 607 Flag Detail <noreply@mail.det607flagdetail.com>',to:[normalizedEmail],subject:'You are invited to DET 607 Flag Detail Management',html:`<h2>Welcome to DET 607 Flag Detail Management</h2><p>Hello ${String(fullName).trim()},</p><p>You have been invited to join the DET 607 flag-detail roster as <strong>${cadetType}</strong>.</p><p>Use the secure link below to create your password, then complete your profile with your phone number, class level, and school.</p><p><a href="${setupLink}">Create your account</a></p><p>${accountGuidance}</p><p>If you were not expecting this invitation, you may disregard this email.</p>`})});
  if(!emailResponse.ok){const responseText=await emailResponse.text();return new Response(JSON.stringify({error:`Invitation account was created, but the DET 607 email could not be sent: ${responseText}`}),{status:502,headers});}
  return new Response(JSON.stringify({ok:true}),{headers});
 });
