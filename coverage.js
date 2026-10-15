@@ -65,9 +65,23 @@
     state.requests = coverageResult.data || [];
     state.swaps = swapResult.data || [];
     window.det607CoverageRequests = state.requests;
+    const myId = currentId();
+    const eligibleCoverage = state.requests.filter(item => item.requester_id !== myId && item.can_accept).length;
+    const eligibleSwaps = state.swaps.filter(item => item.requester_id !== myId && item.can_accept).length;
+    const pendingCoverage = state.requests.filter(item => item.requester_id === myId && item.status === 'OPEN').length;
+    const pendingSwaps = state.swaps.filter(item => item.requester_id === myId && item.status === 'OPEN').length;
+    window.det607CadetRequestSummary = {
+      eligible: eligibleCoverage + eligibleSwaps,
+      eligibleCoverage,
+      eligibleSwaps,
+      pending: pendingCoverage + pendingSwaps,
+      pendingCoverage,
+      pendingSwaps
+    };
     const badge = byId('#request-count');
     if (badge) badge.textContent = String((isAdmin() ? state.requests.filter(item => item.status === 'OPEN').length : state.requests.filter(item => item.can_accept).length) + state.swaps.filter(item => item.can_accept).length);
     renderCoverageRequests();
+    window.det607RefreshCadetDashboard?.();
   }
 
   async function openNewRequest() {

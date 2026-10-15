@@ -101,6 +101,60 @@ showView = function showPortalView(id) {
   det607ShowView(id);
   if (id === 'schedule' || id === 'open') window.det607RefreshSelectedMonth?.();
 };
+
+const det607DashboardWithOrganization = renderDashboard;
+renderDashboard = function renderDashboardWithCadetSummary() {
+  det607DashboardWithOrganization();
+  const profile = window.det607CurrentProfile || {};
+  if (['ADMIN', 'SUPER_ADMIN'].includes(profile.admin_level)) return;
+
+  const all = data.details || [];
+  const today = window.det607PortalToday();
+  const isMine = detail => detail.cadetIds?.includes(profile.id) || detail.pocId === profile.id;
+  const personal = all.filter(isMine);
+  const month = today.slice(0, 7);
+  const monthlyTotal = personal.filter(detail => detail.date.startsWith(month)).length;
+  const upcoming = personal
+    .filter(detail => detail.date >= today && !detail.blocked)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.type.localeCompare(b.type));
+  const next = upcoming[0];
+  const requests = window.det607CadetRequestSummary || { eligible: 0, pending: 0, eligibleCoverage: 0, eligibleSwaps: 0, pendingCoverage: 0, pendingSwaps: 0 };
+  const labels = $$('.metrics article span');
+  const values = $$('.metrics article strong');
+  const descriptions = $$('.metrics article small');
+  const links = $$('.metrics article a');
+
+  if (labels[0]) labels[0].textContent = 'My flag details';
+  if (values[0]) values[0].textContent = monthlyTotal;
+  if (descriptions[0]) descriptions[0].textContent = `total assigned in ${new Date(`${month}-01T12:00`).toLocaleDateString('en-US', { month: 'long' })}`;
+  if (links[0]) { links[0].textContent = 'View monthly schedule →'; links[0].dataset.viewTarget = 'schedule'; }
+
+  if (labels[1]) labels[1].textContent = 'Coverage & swaps';
+  if (values[1]) values[1].textContent = requests.eligible;
+  if (descriptions[1]) {
+    descriptions[1].textContent = requests.pending
+      ? `${requests.eligible} eligible · ${requests.pending} request${requests.pending === 1 ? '' : 's'} waiting`
+      : requests.eligible
+        ? `${requests.eligibleCoverage} coverage · ${requests.eligibleSwaps} swap${requests.eligibleSwaps === 1 ? '' : 's'} available`
+        : 'no eligible or pending requests';
+  }
+  if (links[1]) { links[1].textContent = 'View requests →'; links[1].dataset.viewTarget = 'requests'; }
+
+  if (labels[2]) labels[2].textContent = 'Next flag detail';
+  if (values[2]) values[2].textContent = next ? next.type : '—';
+  if (descriptions[2]) descriptions[2].textContent = next ? `${dashboardDate(next.date)} · report ${next.report}` : 'no upcoming assignment';
+  if (links[2]) { links[2].textContent = 'View all upcoming →'; links[2].removeAttribute('data-view-target'); }
+
+  const allUpcomingButton = $('#view-all-upcoming');
+  const showAllUpcoming = () => {
+    const rows = upcoming.map(detail => `<div class="detail-row"><span class="detail-type">${detail.type}</span><span class="detail-time">${dashboardDate(detail.date)}<br><b>Report ${detail.report} · Ceremony ${detail.time}</b></span><span class="tag">Your ${detail.pocId === profile.id ? 'POC lead' : 'GMC'} assignment</span><button class="secondary" onclick="detailModal('${detail.id}')">View detail</button></div>`).join('');
+    modal(`<p class="eyebrow">YOUR SCHEDULE</p><h2>Upcoming flag details</h2><p class="muted">${upcoming.length ? 'Review your upcoming assignments and reporting times.' : 'You have no upcoming flag details.'}</p><div class="today-details">${rows || '<p class="muted">No upcoming assignments are currently scheduled.</p>'}</div><div class="modal-actions"><button class="secondary" onclick="close()">Close</button></div>`);
+  };
+  if (links[2]) links[2].onclick = showAllUpcoming;
+  if (allUpcomingButton) allUpcomingButton.onclick = showAllUpcoming;
+};
+window.det607RenderOrganizationDashboard = () => renderDashboard();
+window.det607RefreshCadetDashboard = () => renderDashboard();
  window.editDetail=id=>{let d=data.details.find(x=>x.id===id);modal(`<p class="eyebrow">TIME CHANGE</p><h2>Update detail time</h2><p>Every assigned cadet and the POC lead will receive the changed time by email.</p><div class="form-row"><label>Report time</label><input id="report" type="time" value="${d.report}"></div><div class="form-row"><label>Ceremony time</label><input id="time" type="time" value="${d.time}"></div><div class="modal-actions"><button class="primary" onclick="saveTime(${id})">Save & notify</button></div>`)};
  window.saveTime=id=>{let d=data.details.find(x=>x.id===id);d.report=$('#report').value;d.time=$('#time').value;close();render();toast('Time updated. Assignee email notifications queued.')};
  window.attendanceModal=cadet=>modal(`<p class="eyebrow">ATTENDANCE RECORD</p><h2>${cadet}</h2><div class="form-row"><label>Attendance status</label><select id="attendance-status"><option value="attended">Attended</option><option value="late">Late</option><option value="no-show">Did not attend / no-show</option><option value="excused">Excused</option></select></div><div class="form-row"><label>POC note</label><textarea id="attendance-note" placeholder="Facts only; include any action taken."></textarea></div><div class="modal-actions"><button class="primary" onclick="saveAttendance('${cadet}')">Save record</button></div>`);
