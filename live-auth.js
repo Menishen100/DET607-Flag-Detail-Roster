@@ -10,6 +10,10 @@ window.det607Supabase = supabaseClient;
 const invitationMode = () => {
   const query = new URLSearchParams(location.search);
   const hash = new URLSearchParams(location.hash.slice(1));
+  // An administrator can resend an invite to an existing Auth user. Supabase
+  // issues that link as a recovery token, but it is still an invitation in
+  // this portal and must continue to password setup and profile onboarding.
+  if (query.get('invite') === '1') return 'invite';
   // A password-recovery link can use either a hash token or the PKCE `code`
   // flow. Keep an explicit query marker on the redirect so it can never be
   // mistaken for a new-cadet invitation after Supabase exchanges the code.
@@ -539,8 +543,20 @@ document.addEventListener('click', async event => {
   authStatus('If this email is registered, a password recovery link has been sent. Open that link to set a new password.', 'success');
 });
 if (supabaseClient) {
-  const inviteCode=new URLSearchParams(location.search).get('code');
-  (inviteCode?supabaseClient.auth.exchangeCodeForSession(inviteCode):supabaseClient.auth.getSession()).then(({ data: { session }, error })=>{if(error)return authStatus(error.message,'error');applySession(session)});
+  const inviteQuery = new URLSearchParams(location.search);
+  const inviteHash = new URLSearchParams(location.hash.slice(1));
+  const inviteCode = inviteQuery.get('code') || inviteHash.get('code');
+  const tokenHash = inviteQuery.get('token_hash') || inviteHash.get('token_hash');
+  const tokenType = inviteQuery.get('type') || inviteHash.get('type');
+  // Most links arrive as a PKCE code, but some email clients preserve the
+  // direct token form. Support both instead of dropping a new cadet at the
+  // standard sign-in page without a password.
+  const sessionRequest = inviteCode
+    ? supabaseClient.auth.exchangeCodeForSession(inviteCode)
+    : tokenHash && ['invite', 'recovery'].includes(tokenType || '')
+      ? supabaseClient.auth.verifyOtp({ type: tokenType, token_hash: tokenHash })
+      : supabaseClient.auth.getSession();
+  sessionRequest.then(({ data: { session }, error })=>{if(error)return authStatus(error.message,'error');applySession(session)});
   supabaseClient.auth.onAuthStateChange((event, session) => {
     if (event === 'PASSWORD_RECOVERY') sessionStorage.setItem('det607-password-recovery', '1');
     window.setTimeout(() => applySession(session), 0);
