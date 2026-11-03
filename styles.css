@@ -108,6 +108,31 @@
   color: #697783;
 }
 
+/* Past details remain editable only for the Super Admin. Make that management
+   action obvious and keyboard-accessible instead of looking like a closed card. */
+.mini-detail.super-admin-past-detail {
+  display: block;
+  width: 100%;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  text-align: left;
+  font: inherit;
+}
+.mini-detail.super-admin-past-detail:hover,
+.mini-detail.super-admin-past-detail:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+  filter: brightness(.98);
+}
+.super-admin-manage-detail {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--blue);
+  font: 700 9px 'DM Mono';
+  text-transform: uppercase;
+}
+
 .monthly-roster-card.reveille-roster .eyebrow,
 .detail-card.reveille-open .date-pill {
   color: #17649c;

@@ -182,12 +182,13 @@ function renderCalendar() {
       const remainingGmc = detail.cadets.filter(name => !name).length;
       const pocStatus = detail.poc ? 'POC assigned' : 'POC open';
       const typeClass = detail.type === 'Reveille' ? 'reveille-detail' : 'retreat-detail';
-      return `<div class="mini-detail ${typeClass} ${detail.status === 'ready' ? 'ready-card' : ''}" onclick="detailModal('${detail.id}')"><strong>${escapeRosterText(detail.type)} · ${escapeRosterText(detail.time)}</strong><span>${remainingGmc} GMC open · ${pocStatus}</span></div>`;
+      const managementLabel = isPast && canBlock ? '<span class="super-admin-manage-detail">Manage roster</span>' : '';
+      return `<button type="button" class="mini-detail ${typeClass} ${detail.status === 'ready' ? 'ready-card' : ''} ${isPast && canBlock ? 'super-admin-past-detail' : ''}" onclick="detailModal('${detail.id}')" aria-label="${isPast && canBlock ? 'Manage past ' : 'View '}${escapeRosterText(detail.type)} flag detail"><strong>${escapeRosterText(detail.type)} · ${escapeRosterText(detail.time)}</strong><span>${remainingGmc} GMC open · ${pocStatus}</span>${managementLabel}</button>`;
     }).join('');
     const unavailable = isBlocked || isPast;
     const unavailableLabel = isPast ? 'Past date' : 'Unavailable';
     const unavailableReason = isPast ? 'Sign-up closed' : blockedReason;
-    const pastAdminContent = `${detailCards || '<p class="blocked-note">No detail</p>'}<p class="blocked-note"><strong>Past date</strong><span>Super Admin management only</span></p>`;
+    const pastAdminContent = `${detailCards || '<p class="blocked-note">No detail</p>'}<p class="blocked-note"><strong>Past date</strong><span>Roster and time management are enabled for the Super Admin. Select a detail above.</span></p>`;
     cells.push(`<div class="cal-day ${iso === todayKey ? 'today' : ''} ${isBlocked ? 'blocked-day' : ''} ${isPast ? 'past-day' : ''}"><div class="cal-date"><span class="mobile-weekday">${weekday}</span><span>${day}</span></div>${unavailable ? (isPast && canBlock && !isBlocked ? pastAdminContent : `<p class="blocked-note"><strong>${unavailableLabel}</strong><span>${escapeRosterText(unavailableReason)}</span></p>${isBlocked && canBlock ? `<button class="text-button block-calendar-date" onclick="unblockScheduleDate('${iso}')">Unblock date</button>` : ''}`) : `${detailCards || '<p class="blocked-note">No detail</p>'}${canBlock ? `<button class="text-button block-calendar-date" onclick="blockScheduleDate('${iso}')">Block date</button>` : ''}`}</div>`);
   }
 
