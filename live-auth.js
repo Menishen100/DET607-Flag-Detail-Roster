@@ -134,6 +134,59 @@ function escapeRosterText(value) {
   return String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 }
 
+const notificationEventLabels = {
+  ADMIN_ASSIGNMENT: 'Flag detail assignment', ASSIGNMENT_CONFIRMATION: 'Shift confirmation',
+  ASSIGNMENT_UPDATED: 'Flag detail assignment updated', DETAIL_BLOCKED: 'Flag detail cancelled',
+  DETAIL_REMINDER: 'Flag detail reminder', DETAIL_TIME_UPDATED: 'Flag detail time updated',
+  SCHEDULE_PUBLISHED: 'Schedule published', COUNSELING_CREATED: 'Counseling notice',
+  COUNSELING_RESEND: 'Counseling notice resent', COUNSELING_SIGNATURE_REQUEST: 'Counseling signature request', REQUEST_CREATED: 'Coverage or swap request opened',
+  REQUEST_RESOLVED: 'Coverage or swap request updated', NEW_CADET_INVITATION: 'Roster invitation'
+};
+
+function formatNotificationDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Time unavailable';
+  return new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(date);
+}
+
+function notificationDeliveryStatus(notification) {
+  const scheduled = new Date(notification.scheduled_for || notification.created_at);
+  if (!notification.delivered_at && !Number.isNaN(scheduled.getTime()) && scheduled > new Date()) return 'Scheduled reminder';
+  return notification.delivered_at ? 'Accepted for delivery' : 'Pending delivery';
+}
+
+async function refreshNotificationIndicator() {
+  const indicator = document.querySelector('#notification-dot');
+  if (!indicator) return;
+  indicator.hidden = true;
+  if (!supabaseClient || !window.det607CurrentProfile) return;
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { count, error } = await supabaseClient.from('notification_outbox').select('id', { count: 'exact', head: true }).gte('created_at', since);
+  if (!error && count) {
+    indicator.hidden = false;
+    document.querySelector('#show-notifications')?.setAttribute('aria-label', `Notifications — ${count} event${count === 1 ? '' : 's'} in the last 30 days`);
+  }
+}
+
+async function openLiveNotificationLog() {
+  if (!supabaseClient || !window.det607CurrentProfile) return toast('Sign in to view your notification log.');
+  const trigger = document.querySelector('#show-notifications');
+  if (trigger) trigger.disabled = true;
+  modal('<p class="eyebrow">NOTIFICATION LOG</p><h2>Your notification activity</h2><p>Loading the latest events for your account…</p>');
+  const { data: notifications, error } = await supabaseClient.from('notification_outbox').select('id,event_type,entity_type,scheduled_for,delivered_at,created_at').order('created_at', { ascending: false }).limit(50);
+  if (trigger) trigger.disabled = false;
+  if (error) return modal(`<p class="eyebrow">NOTIFICATION LOG</p><h2>Your notification activity</h2><p>Could not load your notifications: ${escapeRosterText(error.message)}</p><div class="modal-actions"><button class="secondary" onclick="close()">Close</button></div>`);
+  const entries = (notifications || []).map(notification => {
+    const title = notificationEventLabels[notification.event_type] || notification.event_type.replace(/_/g, ' ');
+    const status = notificationDeliveryStatus(notification);
+    const statusClass = status === 'Accepted for delivery' ? 'success' : status === 'Scheduled reminder' ? 'warn' : 'danger';
+    return `<article class="notification-log-entry"><div><strong>${escapeRosterText(title)}</strong><span>${escapeRosterText(formatNotificationDate(notification.created_at))}</span></div><span class="tag ${statusClass}">${escapeRosterText(status)}</span></article>`;
+  }).join('');
+  modal(`<p class="eyebrow">NOTIFICATION LOG</p><h2>Your notification activity</h2><p class="muted">Showing the 50 newest email or reminder events for your account.</p><div class="notification-log-list">${entries || '<p class="muted">No notification events have been recorded for your account yet.</p>'}</div><div class="modal-actions"><button class="secondary" onclick="close()">Close</button></div>`);
+}
+
+document.querySelector('#show-notifications').onclick = openLiveNotificationLog;
+
 function easternDateKey(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit'
@@ -476,7 +529,7 @@ async function loadLiveRoster(profile, email) {
   document.querySelector('#profile-name').textContent = displayName;
   document.querySelector('#profile-email').textContent = email || '';
   document.querySelector('#profile-role').textContent = profileRole;
-  window.det607CurrentProfile=profile; applyRoleAccess(profile); await loadImportantInformation(); document.dispatchEvent(new CustomEvent('det607:profile', { detail: { profile, email } }));
+  window.det607CurrentProfile=profile; applyRoleAccess(profile); await loadImportantInformation(); await refreshNotificationIndicator(); document.dispatchEvent(new CustomEvent('det607:profile', { detail: { profile, email } }));
   document.querySelector('#page-title').textContent = window.det607DashboardGreeting
     ? window.det607DashboardGreeting()
     : `Welcome, ${displayName}.`;
