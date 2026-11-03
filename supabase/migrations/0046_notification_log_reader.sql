@@ -27,3 +27,7 @@ $$;
 
 revoke all on function public.get_my_notification_log() from public;
 grant execute on function public.get_my_notification_log() to authenticated;
+
+-- Make the new RPC callable immediately instead of waiting for PostgREST's
+-- schema cache refresh interval.
+notify pgrst, 'reload schema';
