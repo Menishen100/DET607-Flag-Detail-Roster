@@ -160,8 +160,9 @@ async function refreshNotificationIndicator() {
   if (!indicator) return;
   indicator.hidden = true;
   if (!supabaseClient || !window.det607CurrentProfile) return;
-  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const { count, error } = await supabaseClient.from('notification_outbox').select('id', { count: 'exact', head: true }).gte('created_at', since);
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).getTime();
+  const { data: notifications, error } = await supabaseClient.rpc('get_my_notification_log');
+  const count = (notifications || []).filter(notification => new Date(notification.created_at).getTime() >= since).length;
   if (!error && count) {
     indicator.hidden = false;
     document.querySelector('#show-notifications')?.setAttribute('aria-label', `Notifications — ${count} event${count === 1 ? '' : 's'} in the last 30 days`);
@@ -173,7 +174,7 @@ async function openLiveNotificationLog() {
   const trigger = document.querySelector('#show-notifications');
   if (trigger) trigger.disabled = true;
   modal('<p class="eyebrow">NOTIFICATION LOG</p><h2>Your notification activity</h2><p>Loading the latest events for your account…</p>');
-  const { data: notifications, error } = await supabaseClient.from('notification_outbox').select('id,event_type,entity_type,scheduled_for,delivered_at,created_at').order('created_at', { ascending: false }).limit(50);
+  const { data: notifications, error } = await supabaseClient.rpc('get_my_notification_log');
   if (trigger) trigger.disabled = false;
   if (error) return modal(`<p class="eyebrow">NOTIFICATION LOG</p><h2>Your notification activity</h2><p>Could not load your notifications: ${escapeRosterText(error.message)}</p><div class="modal-actions"><button class="secondary" onclick="close()">Close</button></div>`);
   const entries = (notifications || []).map(notification => {
