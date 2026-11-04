@@ -186,7 +186,15 @@ async function openLiveNotificationLog() {
   modal(`<p class="eyebrow">NOTIFICATION LOG</p><h2>Your notification activity</h2><p class="muted">Showing the 50 newest email or reminder events for your account.</p><div class="notification-log-list">${entries || '<p class="muted">No notification events have been recorded for your account yet.</p>'}</div><div class="modal-actions"><button class="secondary" onclick="close()">Close</button></div>`);
 }
 
-document.querySelector('#show-notifications').onclick = openLiveNotificationLog;
+function bindLiveNotificationLog() {
+  const notificationButton = document.querySelector('#show-notifications');
+  if (notificationButton) notificationButton.onclick = openLiveNotificationLog;
+}
+
+// app.js contains legacy demo wiring. Bind once now and again after every
+// script has loaded so the live portal cannot fall back to sample events.
+bindLiveNotificationLog();
+window.addEventListener('load', bindLiveNotificationLog);
 
 function easternDateKey(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
