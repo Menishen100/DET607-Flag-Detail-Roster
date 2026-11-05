@@ -13,7 +13,11 @@ Deno.serve(async request => {
     if (!authorization) return reply({ error: "Sign in required" }, 401);
     const url = Deno.env.get("SUPABASE_URL")!;
     const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    // Supabase projects may provide the service credential through either
+    // secret name. Match the other production functions so coverage and swap
+    // notifications keep working after a platform secret rotation.
+    const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}") as Record<string, string>;
+    const service = Object.values(secretKeys).find(value => typeof value === "string") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const userClient = createClient(url, anon, { global: { headers: { Authorization: authorization } } });
     const { data: { user }, error: userError } = await userClient.auth.getUser();
     if (userError || !user) return reply({ error: "Invalid session" }, 401);

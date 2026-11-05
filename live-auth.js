@@ -196,6 +196,16 @@ function bindLiveNotificationLog() {
 bindLiveNotificationLog();
 window.addEventListener('load', bindLiveNotificationLog);
 
+// The legacy interface also registers a demo notification click handler. Use
+// the capture phase so that handler can never run first, including when a
+// cached legacy script loads after the live portal code.
+document.addEventListener('click', event => {
+  if (!event.target.closest('#show-notifications')) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  void openLiveNotificationLog();
+}, true);
+
 function easternDateKey(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit'
