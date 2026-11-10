@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>DET 607 Flag Detail Management</title><link rel="icon" href="assets/favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png"><link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png"><link rel="apple-touch-icon" sizes="180x180" href="assets/favicon-180.png"><link rel="stylesheet" href="styles.css?v=20261110-admin-profile-modal"><link rel="stylesheet" href="friday-schedule.css?v=20261103-mobile-schedule"><link rel="stylesheet" href="workload-report.css?v=20260925-workload-placement">
+  <title>DET 607 Flag Detail Management</title><link rel="icon" href="assets/favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png"><link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png"><link rel="apple-touch-icon" sizes="180x180" href="assets/favicon-180.png"><link rel="stylesheet" href="styles.css?v=20261110-super-admin-audit"><link rel="stylesheet" href="friday-schedule.css?v=20261103-mobile-schedule"><link rel="stylesheet" href="workload-report.css?v=20260925-workload-placement">
 </head>
 <body>
   <section class="auth-screen" id="auth-screen">
@@ -30,6 +30,7 @@
       <button class="nav" data-view="requests">Requests <b id="request-count">0</b></button>
       <button class="nav" data-view="counseling">Counseling <b id="case-count">0</b></button>
       <button class="nav" data-view="roster" id="roster-nav" hidden>Cadet directory</button>
+      <button class="nav" data-view="audit" id="audit-nav" hidden>Audit log</button>
     </nav>
     <div class="side-bottom"><button class="user-card" id="profile-menu" aria-expanded="false" aria-controls="profile-popover"><span class="avatar">MA</span><span><strong>Loading profile</strong><small>Roster account</small></span><b class="profile-chevron">⌄</b></button><div class="profile-popover" id="profile-popover" hidden><strong id="profile-name">Loading profile</strong><small id="profile-email"></small><span id="profile-role">Roster account</span><button id="manage-profile" type="button">My profile & class level</button><button id="sign-out" type="button">Sign out</button></div><button id="reset" hidden type="button"></button></div>
   </aside><button class="mobile-nav-backdrop" id="mobile-nav-backdrop" type="button" aria-label="Close menu"></button>
@@ -48,15 +49,17 @@
     <section id="requests" class="view"><div class="section-heading"><div><p class="eyebrow">COVERAGE</p><h2>Coverage requests</h2><p class="muted">Request coverage for one of your own shifts. Only eligible GMCs or POCs who are not already assigned that day can accept.</p></div><button class="primary" id="new-coverage-request">Request coverage</button></div><div id="request-list" class="card-list"><p class="muted">Coverage requests are loading…</p></div></section>
     <section id="counseling" class="view"><div class="section-heading"><div><p class="eyebrow">COUNSELING RECORDS</p><h2>Counseling & no-show cases</h2><p class="muted" id="counseling-records-note">All counseling records associated with your account, including pending, signed, completed, and disputed records.</p><p class="muted" id="counseling-poc-note">POC cases are automatically elevated to the Super Admin.</p></div><button class="primary" id="new-case">Open counseling case</button></div><div id="case-list" class="card-list"></div></section>
     <section id="roster" class="view"><div class="section-heading"><div><p class="eyebrow">ADMINISTRATION</p><h2>Cadet directory</h2><p class="muted">Roster accounts with separate classifications, access levels, class levels, flights, schools, and contact details.</p></div><button class="primary" id="invite-cadet" hidden>Invite cadet</button></div><div class="roster-filters"><input id="roster-search" type="search" placeholder="Search name or email"><select id="roster-classification-filter" aria-label="Filter by classification"><option value="">All classifications</option><option value="GMC">GMC</option><option value="POC">POC</option><option value="CADRE">Cadre</option></select><select id="roster-access-filter" aria-label="Filter by access level"><option value="">All access levels</option><option value="NONE">User</option><option value="ADMIN">Admin</option><option value="SUPER_ADMIN">Super Admin</option></select><select id="roster-level-filter"><option value="">All class levels</option><option value="100">100</option><option value="150">150</option><option value="200">200</option><option value="250">250</option><option value="300">300</option><option value="400">400</option><option value="500">500</option><option value="600">600</option></select></div><div id="roster-directory" class="roster-directory"><p class="muted">Roster loading…</p></div></section>
+    <section id="audit" class="view"><div class="section-heading"><div><p class="eyebrow">SUPER ADMIN</p><h2>Organization audit log</h2><p class="muted">Immutable record of roster, schedule, assignment, attendance, request, counseling, and notification activity.</p></div><button class="secondary" id="refresh-audit-log" type="button">Refresh log</button></div><div class="audit-filters"><input id="audit-log-search" type="search" placeholder="Search actor, action, or record"><select id="audit-log-type" aria-label="Filter audit log"><option value="">All activity</option></select></div><div id="audit-log-list" class="audit-log"><p class="muted">Audit log is available only to the Super Admin.</p></div></section>
   </main>
   <div class="toast" id="toast"></div><div class="modal-backdrop" id="modal"><div class="modal"><button class="close" id="close-modal">×</button><div id="modal-content"></div></div></div>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=20260922"></script>
-  <script src="app.js?v=20261103-no-demo-notifications"></script>
+  <script src="app.js?v=20261110-super-admin-audit"></script>
   <script src="live-auth.js?v=20261105-super-admin-logo"></script>
   <script src="coverage.js?v=20261015-login-fix"></script>
   <script src="roster.js?v=20261110-profile-name-save"></script>
+  <script src="audit-log.js?v=20261110-super-admin-audit"></script>
   <script src="counseling.js?v=20260925-simple-signature"></script>
   <script src="attendance-live.js?v=20261007-military-time"></script>
 </body></html>
