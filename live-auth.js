@@ -291,7 +291,8 @@ function renderCalendar() {
       const pocStatus = detail.poc ? 'POC assigned' : 'POC open';
       const typeClass = detail.type === 'Reveille' ? 'reveille-detail' : 'retreat-detail';
       const managementLabel = isPast && canBlock ? '<span class="super-admin-manage-detail">Manage roster</span>' : '';
-      return `<button type="button" class="mini-detail ${typeClass} ${detail.status === 'ready' ? 'ready-card' : ''} ${isPast && canBlock ? 'super-admin-past-detail' : ''}" onclick="detailModal('${detail.id}')" aria-label="${isPast && canBlock ? 'Manage past ' : 'View '}${escapeRosterText(detail.type)} flag detail"><strong>${escapeRosterText(detail.type)} · ${escapeRosterText(detail.time)}</strong><span>${remainingGmc} GMC open · ${pocStatus}</span>${managementLabel}</button>`;
+      const attentionLabel = detail.attentionNote ? '<span class="detail-attention-tag">Attention note</span>' : '';
+      return `<button type="button" class="mini-detail ${typeClass} ${detail.status === 'ready' ? 'ready-card' : ''} ${isPast && canBlock ? 'super-admin-past-detail' : ''}" onclick="detailModal('${detail.id}')" aria-label="${isPast && canBlock ? 'Manage past ' : 'View '}${escapeRosterText(detail.type)} flag detail"><strong>${escapeRosterText(detail.type)} · ${escapeRosterText(detail.time)}</strong><span>${remainingGmc} GMC open · ${pocStatus}</span>${attentionLabel}${managementLabel}</button>`;
     }).join('');
     const unavailable = isBlocked || isPast;
     const unavailableLabel = isPast ? 'Past date' : 'Unavailable';
@@ -365,7 +366,7 @@ function renderOpen() {
     const dayNumber = date.getDate();
     const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
     const monthName = date.toLocaleDateString('en-US', { month: 'short' });
-    return `<article class="detail-card ${typeClass} ${alreadySelected ? 'selected-open-detail' : ''}"><div class="date-pill">${dayNumber}<small>${escapeRosterText(weekday)} · ${escapeRosterText(monthName)} · ${escapeRosterText(detail.type)}</small></div><div class="card-main"><h3>${escapeRosterText(weekdayDetailDate(detail.date))} · ${escapeRosterText(detail.type)}</h3><p>Report ${escapeRosterText(detail.report)} · Ceremony ${escapeRosterText(detail.time)}</p><p>${openGmc ? `${openGmc} GMC ${openGmc === 1 ? 'slot' : 'slots'} open` : 'GMC slots filled'}${openPoc ? ' · 1 POC lead slot open' : ' · POC lead filled'}</p><div class="tags">${alreadySelected ? '<span class="tag selected-shift-tag">Already on your schedule</span>' : ''}${openGmc ? `<span class="tag warn">${openGmc} GMC open</span>` : ''}${openPoc ? '<span class="tag danger">1 POC open</span>' : ''}</div></div><div class="card-actions"><button class="secondary" onclick="detailModal('${detail.id}')">View roster</button><button class="primary ${alreadySelected ? 'selected-shift-button' : ''}" onclick="signup('${detail.id}')">${alreadySelected ? 'Selected shift' : 'Select shift'}</button></div></article>`;
+    return `<article class="detail-card ${typeClass} ${alreadySelected ? 'selected-open-detail' : ''}"><div class="date-pill">${dayNumber}<small>${escapeRosterText(weekday)} · ${escapeRosterText(monthName)} · ${escapeRosterText(detail.type)}</small></div><div class="card-main"><h3>${escapeRosterText(weekdayDetailDate(detail.date))} · ${escapeRosterText(detail.type)}</h3><p>Report ${escapeRosterText(detail.report)} · Ceremony ${escapeRosterText(detail.time)}</p><p>${openGmc ? `${openGmc} GMC ${openGmc === 1 ? 'slot' : 'slots'} open` : 'GMC slots filled'}${openPoc ? ' · 1 POC lead slot open' : ' · POC lead filled'}</p><div class="tags">${detail.attentionNote ? '<span class="tag danger">Attention note</span>' : ''}${alreadySelected ? '<span class="tag selected-shift-tag">Already on your schedule</span>' : ''}${openGmc ? `<span class="tag warn">${openGmc} GMC open</span>` : ''}${openPoc ? '<span class="tag danger">1 POC open</span>' : ''}</div></div><div class="card-actions"><button class="secondary" onclick="detailModal('${detail.id}')">View roster</button><button class="primary ${alreadySelected ? 'selected-shift-button' : ''}" onclick="signup('${detail.id}')">${alreadySelected ? 'Selected shift' : 'Select shift'}</button></div></article>`;
   }).join('');
 }
 
@@ -475,6 +476,22 @@ window.detailModal = async id => {
   }).join('');
   const poc = detail.poc ? (superAdmin && detail.pocId ? `<select class="detail-row roster-slot inline-replacement" data-current-cadet-id="${detail.pocId}">${options(pocs, 'Select POC cadet', detail.pocId)}</select>` : `<div class="detail-row roster-slot"><span>${escapeRosterText(detail.poc)}</span></div>`) : staff ? `<select class="detail-row roster-slot inline-assignment" data-position="POC"><option value="">Open POC lead position</option>${options(pocs, 'Select POC cadet').replace(/^<option[^>]*>.*?<\/option>/, '')}</select>` : `<div class="detail-row roster-slot open-slot"><span>Open POC lead position</span></div>`;
   modal(`<p class="eyebrow">${weekdayDetailDate(detail.date)} · ${detail.type}</p><h2>${detail.type} flag detail</h2><p>Report ${detail.report}; ceremony ${detail.time}.</p><div class="form-row"><label>GMC roster (${detail.cadets.filter(Boolean).length}/3)</label>${roster}</div><div class="form-row"><label>POC lead</label>${poc}</div><div class="modal-actions">${staff ? '<button class="secondary" id="detail-edit-times">Edit times</button><button class="primary" id="save-staff-assignments" disabled>Assign selected</button>' : '<button class="primary" id="detail-signup">Select shift</button>'}</div>`);
+  const detailDialog = document.querySelector('#modal-content');
+  const reportLine = detailDialog?.querySelector('h2')?.nextElementSibling;
+  if (detail.attentionNote && reportLine) {
+    const alert = document.createElement('div');
+    alert.className = 'detail-attention';
+    alert.innerHTML = `<strong>Attention</strong><span>${escapeRosterText(detail.attentionNote)}</span>`;
+    reportLine.insertAdjacentElement('afterend', alert);
+  }
+  if (superAdmin) {
+    const actions = detailDialog?.querySelector('.modal-actions');
+    const noteButton = document.createElement('button');
+    noteButton.type = 'button'; noteButton.className = 'secondary';
+    noteButton.textContent = detail.attentionNote ? 'Edit attention note' : 'Add attention note';
+    noteButton.onclick = () => openDetailAttentionEditor(detail);
+    actions?.prepend(noteButton);
+  }
   if (!staff) document.querySelector('#detail-signup').onclick = () => signup(detail.id);
   if (staff) {
     document.querySelector('#detail-edit-times').onclick = () => openDetailTimeEditor(detail);
@@ -541,6 +558,31 @@ async function openAdminPlacement(detail, requestedPosition = null) {
   };
 }
 
+function openDetailAttentionEditor(detail) {
+  if (window.det607CurrentProfile?.admin_level !== 'SUPER_ADMIN') return toast('Only the Super Admin can update a detail attention note.');
+  modal(`<p class="eyebrow">DETAIL ATTENTION</p><h2>${escapeRosterText(detail.type)} · ${escapeRosterText(weekdayDetailDate(detail.date))}</h2><p>Add a short instruction that every cadet can see for this specific flag detail. Example: “Half-staff today. Do not raise the flag to full staff.”</p><div class="form-row"><label>Cadet-visible attention note</label><textarea id="detail-attention-note" rows="4" maxlength="500" placeholder="Half-staff today…">${escapeRosterText(detail.attentionNote || '')}</textarea><small>Leave blank and save to remove the note.</small></div><div class="modal-actions"><button class="secondary" id="cancel-detail-attention">Cancel</button><button class="primary" id="save-detail-attention">Save note</button></div>`);
+  document.querySelector('#cancel-detail-attention').onclick = close;
+  document.querySelector('#save-detail-attention').onclick = async () => {
+    const button = document.querySelector('#save-detail-attention');
+    const note = document.querySelector('#detail-attention-note').value.trim();
+    button.disabled = true; button.textContent = 'Saving…';
+    const { data: recipients, error } = await supabaseClient.rpc('super_admin_update_detail_attention_note', { target_detail_id: detail.id, new_attention_note: note });
+    if (error) { button.disabled = false; button.textContent = 'Save note'; return toast(error.message); }
+    if (note) {
+      for (const recipientId of recipients || []) await deliverNotification({
+        recipientId, eventType: 'DETAIL_ATTENTION_UPDATED', entityType: 'DETAIL', entityId: detail.id,
+        subject: `Attention — ${detail.type}, ${emailDetailDate(detail.date)}`,
+        html: `<p><strong>Attention for your assigned ${detail.type} on ${emailDetailDate(detail.date)}:</strong></p><p>${escapeRosterText(note)}</p>`
+      });
+    }
+    close();
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    await applySession(session);
+    await detailModal(detail.id);
+    toast(note ? 'Detail attention note saved.' : 'Detail attention note removed.');
+  };
+}
+
 function openDetailTimeEditor(detail) {
   modal(`<p class="eyebrow">DETAIL TIME UPDATE</p><h2>Update ${detail.type} times</h2><div class="form-row"><label>Report time</label><input id="staff-report-time" type="time" value="${detail.reportInput || detail.report}"></div><div class="form-row"><label>Ceremony time</label><input id="staff-ceremony-time" type="time" value="${detail.timeInput || detail.time}"></div><div class="modal-actions"><button class="secondary" id="cancel-detail-times">Cancel</button><button class="primary" id="save-detail-times">Save changes</button></div>`);
   document.querySelector('#cancel-detail-times').onclick = close;
@@ -570,7 +612,8 @@ async function loadLiveRoster(profile, email) {
     poc: detail.poc_name || '', pocId: detail.poc_id || '',
     status: detail.blocked === true || detail.blocked === 'true' ? 'blocked' : 'open',
     blocked: detail.blocked === true || detail.blocked === 'true',
-    blockedReason: detail.blocked_reason
+    blockedReason: detail.blocked_reason,
+    attentionNote: detail.attention_note || ''
   }});
   data = { details: mapped, blocked: Object.fromEntries(mapped.filter(d => d.blocked).map(d => [d.date, d.blockedReason || 'Unavailable'])), requests: [], attendance: [], cases: [] };
   const displayName = profile.full_name || 'Cadet';
